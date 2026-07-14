@@ -9,38 +9,198 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as AppRouteImport } from './routes/app'
+import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AppIndexRouteImport } from './routes/app.index'
+import { Route as AdminIndexRouteImport } from './routes/admin.index'
+import { Route as AppStatusRouteImport } from './routes/app.status'
+import { Route as AppChatRouteImport } from './routes/app.chat'
+import { Route as AdminToolsRouteImport } from './routes/admin.tools'
+import { Route as AdminScheduleRouteImport } from './routes/admin.schedule'
+import { Route as AdminRegistrantsRouteImport } from './routes/admin.registrants'
+import { Route as AdminLiveRouteImport } from './routes/admin.live'
+import { Route as AdminDetailsRouteImport } from './routes/admin.details'
+import { Route as AdminAuditRouteImport } from './routes/admin.audit'
 
+const AppRoute = AppRouteImport.update({
+  id: '/app',
+  path: '/app',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppIndexRoute = AppIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AdminIndexRoute = AdminIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AppStatusRoute = AppStatusRouteImport.update({
+  id: '/status',
+  path: '/status',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppChatRoute = AppChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
+  getParentRoute: () => AppRoute,
+} as any)
+const AdminToolsRoute = AdminToolsRouteImport.update({
+  id: '/tools',
+  path: '/tools',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminScheduleRoute = AdminScheduleRouteImport.update({
+  id: '/schedule',
+  path: '/schedule',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminRegistrantsRoute = AdminRegistrantsRouteImport.update({
+  id: '/registrants',
+  path: '/registrants',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminLiveRoute = AdminLiveRouteImport.update({
+  id: '/live',
+  path: '/live',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminDetailsRoute = AdminDetailsRouteImport.update({
+  id: '/details',
+  path: '/details',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminAuditRoute = AdminAuditRouteImport.update({
+  id: '/audit',
+  path: '/audit',
+  getParentRoute: () => AdminRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRouteWithChildren
+  '/app': typeof AppRouteWithChildren
+  '/admin/audit': typeof AdminAuditRoute
+  '/admin/details': typeof AdminDetailsRoute
+  '/admin/live': typeof AdminLiveRoute
+  '/admin/registrants': typeof AdminRegistrantsRoute
+  '/admin/schedule': typeof AdminScheduleRoute
+  '/admin/tools': typeof AdminToolsRoute
+  '/app/chat': typeof AppChatRoute
+  '/app/status': typeof AppStatusRoute
+  '/admin/': typeof AdminIndexRoute
+  '/app/': typeof AppIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin/audit': typeof AdminAuditRoute
+  '/admin/details': typeof AdminDetailsRoute
+  '/admin/live': typeof AdminLiveRoute
+  '/admin/registrants': typeof AdminRegistrantsRoute
+  '/admin/schedule': typeof AdminScheduleRoute
+  '/admin/tools': typeof AdminToolsRoute
+  '/app/chat': typeof AppChatRoute
+  '/app/status': typeof AppStatusRoute
+  '/admin': typeof AdminIndexRoute
+  '/app': typeof AppIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin': typeof AdminRouteWithChildren
+  '/app': typeof AppRouteWithChildren
+  '/admin/audit': typeof AdminAuditRoute
+  '/admin/details': typeof AdminDetailsRoute
+  '/admin/live': typeof AdminLiveRoute
+  '/admin/registrants': typeof AdminRegistrantsRoute
+  '/admin/schedule': typeof AdminScheduleRoute
+  '/admin/tools': typeof AdminToolsRoute
+  '/app/chat': typeof AppChatRoute
+  '/app/status': typeof AppStatusRoute
+  '/admin/': typeof AdminIndexRoute
+  '/app/': typeof AppIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/admin'
+    | '/app'
+    | '/admin/audit'
+    | '/admin/details'
+    | '/admin/live'
+    | '/admin/registrants'
+    | '/admin/schedule'
+    | '/admin/tools'
+    | '/app/chat'
+    | '/app/status'
+    | '/admin/'
+    | '/app/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/admin/audit'
+    | '/admin/details'
+    | '/admin/live'
+    | '/admin/registrants'
+    | '/admin/schedule'
+    | '/admin/tools'
+    | '/app/chat'
+    | '/app/status'
+    | '/admin'
+    | '/app'
+  id:
+    | '__root__'
+    | '/'
+    | '/admin'
+    | '/app'
+    | '/admin/audit'
+    | '/admin/details'
+    | '/admin/live'
+    | '/admin/registrants'
+    | '/admin/schedule'
+    | '/admin/tools'
+    | '/app/chat'
+    | '/app/status'
+    | '/admin/'
+    | '/app/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRoute: typeof AdminRouteWithChildren
+  AppRoute: typeof AppRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/app': {
+      id: '/app'
+      path: '/app'
+      fullPath: '/app'
+      preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,22 +208,120 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/app/': {
+      id: '/app/'
+      path: '/'
+      fullPath: '/app/'
+      preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/admin/': {
+      id: '/admin/'
+      path: '/'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AdminIndexRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/app/status': {
+      id: '/app/status'
+      path: '/status'
+      fullPath: '/app/status'
+      preLoaderRoute: typeof AppStatusRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/chat': {
+      id: '/app/chat'
+      path: '/chat'
+      fullPath: '/app/chat'
+      preLoaderRoute: typeof AppChatRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/admin/tools': {
+      id: '/admin/tools'
+      path: '/tools'
+      fullPath: '/admin/tools'
+      preLoaderRoute: typeof AdminToolsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/schedule': {
+      id: '/admin/schedule'
+      path: '/schedule'
+      fullPath: '/admin/schedule'
+      preLoaderRoute: typeof AdminScheduleRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/registrants': {
+      id: '/admin/registrants'
+      path: '/registrants'
+      fullPath: '/admin/registrants'
+      preLoaderRoute: typeof AdminRegistrantsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/live': {
+      id: '/admin/live'
+      path: '/live'
+      fullPath: '/admin/live'
+      preLoaderRoute: typeof AdminLiveRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/details': {
+      id: '/admin/details'
+      path: '/details'
+      fullPath: '/admin/details'
+      preLoaderRoute: typeof AdminDetailsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/audit': {
+      id: '/admin/audit'
+      path: '/audit'
+      fullPath: '/admin/audit'
+      preLoaderRoute: typeof AdminAuditRouteImport
+      parentRoute: typeof AdminRoute
+    }
   }
 }
 
+interface AdminRouteChildren {
+  AdminAuditRoute: typeof AdminAuditRoute
+  AdminDetailsRoute: typeof AdminDetailsRoute
+  AdminLiveRoute: typeof AdminLiveRoute
+  AdminRegistrantsRoute: typeof AdminRegistrantsRoute
+  AdminScheduleRoute: typeof AdminScheduleRoute
+  AdminToolsRoute: typeof AdminToolsRoute
+  AdminIndexRoute: typeof AdminIndexRoute
+}
+
+const AdminRouteChildren: AdminRouteChildren = {
+  AdminAuditRoute: AdminAuditRoute,
+  AdminDetailsRoute: AdminDetailsRoute,
+  AdminLiveRoute: AdminLiveRoute,
+  AdminRegistrantsRoute: AdminRegistrantsRoute,
+  AdminScheduleRoute: AdminScheduleRoute,
+  AdminToolsRoute: AdminToolsRoute,
+  AdminIndexRoute: AdminIndexRoute,
+}
+
+const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
+
+interface AppRouteChildren {
+  AppChatRoute: typeof AppChatRoute
+  AppStatusRoute: typeof AppStatusRoute
+  AppIndexRoute: typeof AppIndexRoute
+}
+
+const AppRouteChildren: AppRouteChildren = {
+  AppChatRoute: AppChatRoute,
+  AppStatusRoute: AppStatusRoute,
+  AppIndexRoute: AppIndexRoute,
+}
+
+const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRoute: AdminRouteWithChildren,
+  AppRoute: AppRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
