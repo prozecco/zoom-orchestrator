@@ -7,11 +7,11 @@ export const Route = createFileRoute("/app")({
   component: AppLayout,
 });
 
-const tabs = [
+const tabs: { to: string; label: string; icon: typeof ClipboardEdit; exact?: boolean }[] = [
   { to: "/app", label: "Register", icon: ClipboardEdit, exact: true },
   { to: "/app/status", label: "My status", icon: CircleCheck },
   { to: "/app/chat", label: "Live chat", icon: MessageSquare },
-] as const;
+];
 
 function AppLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });

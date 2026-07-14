@@ -9,15 +9,15 @@ export const Route = createFileRoute("/admin")({
   component: AdminLayout,
 });
 
-const tabs = [
+const tabs: { to: string; label: string; icon: typeof Home; exact?: boolean }[] = [
   { to: "/admin", label: "Home", icon: Home, exact: true },
   { to: "/admin/schedule", label: "Schedule", icon: Calendar },
   { to: "/admin/details", label: "Details", icon: Info },
-  { to: "/admin/registrants", label: "Registrants", icon: Users },
+  { to: "/admin/registrants", label: "Users", icon: Users },
   { to: "/admin/live", label: "Live", icon: Radio },
   { to: "/admin/audit", label: "Audit", icon: ScrollText },
   { to: "/admin/tools", label: "Tools", icon: Wrench },
-] as const;
+];
 
 function AdminLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
