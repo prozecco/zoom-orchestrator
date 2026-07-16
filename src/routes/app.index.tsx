@@ -24,16 +24,15 @@ function RegisterPage() {
 
   const [form, setForm] = useState({ name: "", telegramUser: "", email: "", phone: "" });
 
-  // Prefill from Telegram user, but only on first render after data arrives.
-  useState(() => {
-    if (user) {
-      setForm((f) => ({
-        ...f,
-        name: f.name || [user.first_name, user.last_name].filter(Boolean).join(" "),
-        telegramUser: f.telegramUser || (user.username ? `@${user.username}` : ""),
-      }));
-    }
-  });
+  // Prefill from Telegram user when it arrives.
+  useEffect(() => {
+    if (!user) return;
+    setForm((f) => ({
+      ...f,
+      name: f.name || [user.first_name, user.last_name].filter(Boolean).join(" "),
+      telegramUser: f.telegramUser || (user.username ? `@${user.username}` : ""),
+    }));
+  }, [user]);
 
   const submit = useMutation({
     mutationFn: () => submitRegistration({ data: { ...form, telegramId } }),
