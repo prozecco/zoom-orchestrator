@@ -104,7 +104,7 @@ export const syncUpcomingMeetings = createServerFn({ method: "POST" })
       raw: m.raw ?? m,
       synced_at: new Date().toISOString(),
     }));
-    const { error } = await supabaseAdmin.from("meetings").upsert(rows, { onConflict: "zoom_id" });
+    const { error } = await supabaseAdmin.from("meetings").upsert(rows as never, { onConflict: "zoom_id" });
     if (error) throw new Error(error.message);
     return { count: rows.length };
   });
