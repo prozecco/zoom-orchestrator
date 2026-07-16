@@ -77,3 +77,22 @@ export const getStats = createServerFn({ method: "GET" }).handler(async () => {
     liveNow: activeMeeting ? 1 : 0,
   };
 });
+
+const RegisterWebhookInput = z.object({
+  webhookUrl: z.string().url(),
+  actorTelegramId: z.number(),
+});
+
+export const registerTelegramWebhook = createServerFn({ method: "POST" })
+  .inputValidator((raw) => RegisterWebhookInput.parse(raw))
+  .handler(async ({ data }) => {
+    if (!isAdminId(data.actorTelegramId)) throw new Error("Not authorized");
+    const { telegramCall, deriveTelegramWebhookSecret } = await import("./telegram.server");
+    const secret = await deriveTelegramWebhookSecret();
+    const result = await telegramCall("setWebhook", {
+      url: data.webhookUrl,
+      secret_token: secret,
+      allowed_updates: ["message", "edited_message"],
+    });
+    return { ok: true, result };
+  });
