@@ -89,10 +89,10 @@ export const registerTelegramWebhook = createServerFn({ method: "POST" })
     if (!isAdminId(data.actorTelegramId)) throw new Error("Not authorized");
     const { telegramCall, deriveTelegramWebhookSecret } = await import("./telegram.server");
     const secret = await deriveTelegramWebhookSecret();
-    const result = await telegramCall("setWebhook", {
+    await telegramCall("setWebhook", {
       url: data.webhookUrl,
       secret_token: secret,
       allowed_updates: ["message", "edited_message"],
     });
-    return { ok: true, result };
+    return { ok: true as const };
   });
