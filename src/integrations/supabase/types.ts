@@ -14,7 +14,182 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      audit_log: {
+        Row: {
+          action: string
+          actor: string
+          at: string
+          id: string
+          target: string | null
+        }
+        Insert: {
+          action: string
+          actor: string
+          at?: string
+          id?: string
+          target?: string | null
+        }
+        Update: {
+          action?: string
+          actor?: string
+          at?: string
+          id?: string
+          target?: string | null
+        }
+        Relationships: []
+      }
+      meetings: {
+        Row: {
+          capacity: number | null
+          created_at: string
+          duration_min: number | null
+          host: string | null
+          host_email: string | null
+          id: string
+          is_active: boolean | null
+          join_url: string | null
+          passcode: string | null
+          raw: Json | null
+          start_time: string | null
+          status: string | null
+          synced_at: string | null
+          topic: string
+          updated_at: string
+          zoom_id: string
+        }
+        Insert: {
+          capacity?: number | null
+          created_at?: string
+          duration_min?: number | null
+          host?: string | null
+          host_email?: string | null
+          id?: string
+          is_active?: boolean | null
+          join_url?: string | null
+          passcode?: string | null
+          raw?: Json | null
+          start_time?: string | null
+          status?: string | null
+          synced_at?: string | null
+          topic: string
+          updated_at?: string
+          zoom_id: string
+        }
+        Update: {
+          capacity?: number | null
+          created_at?: string
+          duration_min?: number | null
+          host?: string | null
+          host_email?: string | null
+          id?: string
+          is_active?: boolean | null
+          join_url?: string | null
+          passcode?: string | null
+          raw?: Json | null
+          start_time?: string | null
+          status?: string | null
+          synced_at?: string | null
+          topic?: string
+          updated_at?: string
+          zoom_id?: string
+        }
+        Relationships: []
+      }
+      messages: {
+        Row: {
+          created_at: string
+          from_name: string
+          from_role: string
+          id: string
+          meeting_id: string | null
+          registrant_id: string | null
+          telegram_message_id: number | null
+          text: string
+        }
+        Insert: {
+          created_at?: string
+          from_name: string
+          from_role: string
+          id?: string
+          meeting_id?: string | null
+          registrant_id?: string | null
+          telegram_message_id?: number | null
+          text: string
+        }
+        Update: {
+          created_at?: string
+          from_name?: string
+          from_role?: string
+          id?: string
+          meeting_id?: string | null
+          registrant_id?: string | null
+          telegram_message_id?: number | null
+          text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_registrant_id_fkey"
+            columns: ["registrant_id"]
+            isOneToOne: false
+            referencedRelation: "registrants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      registrants: {
+        Row: {
+          email: string
+          id: string
+          meeting_id: string | null
+          name: string
+          phone: string | null
+          registered_at: string
+          status: string
+          telegram_id: number | null
+          telegram_user: string | null
+          updated_at: string
+        }
+        Insert: {
+          email: string
+          id?: string
+          meeting_id?: string | null
+          name: string
+          phone?: string | null
+          registered_at?: string
+          status?: string
+          telegram_id?: number | null
+          telegram_user?: string | null
+          updated_at?: string
+        }
+        Update: {
+          email?: string
+          id?: string
+          meeting_id?: string | null
+          name?: string
+          phone?: string | null
+          registered_at?: string
+          status?: string
+          telegram_id?: number | null
+          telegram_user?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "registrants_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
