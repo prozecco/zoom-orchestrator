@@ -6,10 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Megaphone, KeyRound, RefreshCw } from "lucide-react";
+import { Megaphone, KeyRound, RefreshCw, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { syncActiveMeeting } from "@/lib/meetings.functions";
-import { broadcastToApproved } from "@/lib/viewer.functions";
+import { broadcastToApproved, registerTelegramWebhook } from "@/lib/viewer.functions";
 import { useTelegramViewer } from "@/hooks/useTelegramViewer";
 
 export const Route = createFileRoute("/admin/tools")({
