@@ -63,7 +63,7 @@ export const syncActiveMeeting = createServerFn({ method: "POST" })
     };
     const { data: saved, error } = await supabaseAdmin
       .from("meetings")
-      .upsert(row, { onConflict: "zoom_id" })
+      .upsert(row as never, { onConflict: "zoom_id" })
       .select()
       .single();
     if (error) throw new Error(error.message);
