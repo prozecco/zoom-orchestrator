@@ -34,6 +34,15 @@ function ToolsPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const registerHook = useMutation({
+    mutationFn: () => {
+      const url = `${window.location.origin}/api/public/telegram/webhook`;
+      return registerTelegramWebhook({ data: { webhookUrl: url, actorTelegramId: telegramId ?? 0 } });
+    },
+    onSuccess: () => toast.success("Telegram webhook registered"),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <Card>
