@@ -71,6 +71,18 @@ function ToolsPage() {
           </Button>
         </CardContent>
       </Card>
+
+      <Card className="lg:col-span-2">
+        <CardHeader>
+          <div className="flex items-center gap-2"><Zap className="h-5 w-5 text-primary" /><CardTitle>Telegram webhook</CardTitle></div>
+          <CardDescription>Point the bot at this app so /start opens the right Mini App.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button variant="outline" onClick={() => registerHook.mutate()} disabled={registerHook.isPending}>
+            Register webhook for this app
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }
