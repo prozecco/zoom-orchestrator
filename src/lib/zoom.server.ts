@@ -8,26 +8,29 @@ async function getZoomToken(): Promise<string> {
   const now = Date.now();
   if (cache && cache.expiresAt > now + 30_000) return cache.token;
 
-  const clientId = process.env.ZOOM_CLIENT_ID;
-  const clientSecret = process.env.ZOOM_CLIENT_SECRET;
-  const accountId = process.env.ZOOM_ACCOUNT_ID;
+  const clientId = process.env.ZOOM_CLIENT_ID?.trim();
+  const clientSecret = process.env.ZOOM_CLIENT_SECRET?.trim();
+  const accountId = process.env.ZOOM_ACCOUNT_ID?.trim();
   if (!clientId || !clientSecret || !accountId) {
     throw new Error("Zoom credentials are not configured");
   }
   const basic = btoa(`${clientId}:${clientSecret}`);
-  const res = await fetch(
-    `https://zoom.us/oauth/token?grant_type=account_credentials&account_id=${encodeURIComponent(accountId)}`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Basic ${basic}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
+  const body = new URLSearchParams({
+    grant_type: "account_credentials",
+    account_id: accountId,
+  });
+  const res = await fetch("https://zoom.us/oauth/token", {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${basic}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+      Accept: "application/json",
     },
-  );
+    body,
+  });
   if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Zoom OAuth failed [${res.status}]: ${body}`);
+    const errBody = await res.text();
+    throw new Error(`Zoom OAuth failed [${res.status}] (clientId len=${clientId.length}, accountId len=${accountId.length}): ${errBody}`);
   }
   const data = (await res.json()) as { access_token: string; expires_in: number };
   cache = { token: data.access_token, expiresAt: now + data.expires_in * 1000 };
