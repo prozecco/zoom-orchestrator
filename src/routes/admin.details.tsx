@@ -1,94 +1,88 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { activeMeeting } from "@/lib/mock-data";
+import { getActiveMeeting, syncActiveMeeting } from "@/lib/meetings.functions";
+import { formatDateTime } from "@/lib/format";
+import { toast } from "sonner";
+import { useTelegramViewer } from "@/hooks/useTelegramViewer";
+import { RefreshCw } from "lucide-react";
 
 export const Route = createFileRoute("/admin/details")({
+  ssr: false,
   component: DetailsPage,
 });
 
 function DetailsPage() {
+  const { telegramId } = useTelegramViewer();
+  const qc = useQueryClient();
+  const active = useQuery({ queryKey: ["activeMeeting"], queryFn: () => getActiveMeeting() });
+  const m = active.data;
+
+  const sync = useMutation({
+    mutationFn: () => syncActiveMeeting({ data: { actorTelegramId: telegramId } }),
+    onSuccess: () => { toast.success("Synced from Zoom"); qc.invalidateQueries({ queryKey: ["activeMeeting"] }); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   return (
     <div className="grid gap-4 lg:grid-cols-3">
       <Card className="lg:col-span-2">
-        <CardHeader>
-          <CardTitle>Active meeting details</CardTitle>
-          <CardDescription>Edit the currently active Zoom meeting</CardDescription>
+        <CardHeader className="flex flex-row items-start justify-between space-y-0">
+          <div>
+            <CardTitle>Active meeting details</CardTitle>
+            <CardDescription>Fetched from Zoom · read-only mirror</CardDescription>
+          </div>
+          <Button size="sm" variant="outline" onClick={() => sync.mutate()} disabled={sync.isPending}>
+            <RefreshCw className="h-4 w-4" /> Sync from Zoom
+          </Button>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label>Topic</Label>
-              <Input defaultValue={activeMeeting.topic} />
+          {!m ? (
+            <p className="text-sm text-muted-foreground">No active meeting yet. Click "Sync from Zoom".</p>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Topic" value={m.topic} />
+              <Field label="Meeting ID" value={m.zoom_id} mono />
+              <Field label="Host email" value={m.host_email ?? "—"} />
+              <Field label="Status" value={m.status ?? "—"} />
+              <Field label="Start time" value={formatDateTime(m.start_time)} />
+              <Field label="Duration (min)" value={String(m.duration_min ?? "—")} />
+              <Field label="Passcode" value={m.passcode ?? "—"} />
+              <Field label="Capacity" value={String(m.capacity ?? "—")} />
+              <div className="sm:col-span-2">
+                <Field label="Join URL" value={m.join_url ?? "—"} />
+              </div>
             </div>
-            <div className="space-y-1.5">
-              <Label>Meeting ID</Label>
-              <Input defaultValue={activeMeeting.id} className="font-mono" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Host</Label>
-              <Input defaultValue={activeMeeting.host} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Host email</Label>
-              <Input defaultValue={activeMeeting.hostEmail} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Start time</Label>
-              <Input type="datetime-local" defaultValue={activeMeeting.startTime.slice(0, 16)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Duration (min)</Label>
-              <Input type="number" defaultValue={activeMeeting.durationMin} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Passcode</Label>
-              <Input defaultValue={activeMeeting.passcode} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Capacity</Label>
-              <Input type="number" defaultValue={activeMeeting.capacity} />
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Join URL</Label>
-            <Input defaultValue={activeMeeting.joinUrl} />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Description</Label>
-            <Textarea rows={4} placeholder="Optional meeting description shown to attendees…" />
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline">Cancel</Button>
-            <Button>Save changes</Button>
-          </div>
+          )}
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Status</CardTitle>
-        </CardHeader>
+        <CardHeader><CardTitle>Status</CardTitle></CardHeader>
         <CardContent className="space-y-3 text-sm">
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">State</span>
-            <Badge className="bg-emerald-500 hover:bg-emerald-500">Live</Badge>
+            {m ? <Badge className="bg-emerald-500 hover:bg-emerald-500">{m.status ?? "live"}</Badge> : <Badge variant="outline">—</Badge>}
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">Attendees</span>
-            <span className="font-medium">{activeMeeting.attendees} / {activeMeeting.capacity}</span>
+            <span className="text-muted-foreground">Last synced</span>
+            <span className="font-medium">{formatDateTime(m?.synced_at ?? null)}</span>
           </div>
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">Started</span>
-            <span className="font-medium">{new Date(activeMeeting.startTime).toLocaleTimeString()}</span>
-          </div>
-          <Button variant="destructive" className="mt-4 w-full">End meeting</Button>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function Field({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="space-y-1.5">
+      <Label>{label}</Label>
+      <Input readOnly value={value} className={mono ? "font-mono" : ""} />
     </div>
   );
 }

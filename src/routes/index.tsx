@@ -1,9 +1,12 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Shield, Users, Video } from "lucide-react";
+import { useTelegramViewer } from "@/hooks/useTelegramViewer";
 
 export const Route = createFileRoute("/")({
+  ssr: false,
   head: () => ({
     meta: [
       { title: "Meeting Hub — Telegram & Zoom Management" },
@@ -14,6 +17,18 @@ export const Route = createFileRoute("/")({
 });
 
 function Index() {
+  const navigate = useNavigate();
+  const { telegramId, ready } = useTelegramViewer();
+
+  useEffect(() => {
+    if (!ready || !telegramId) return;
+    // We route via the same resolver used elsewhere. Simple client check:
+    // send everyone with a Telegram id to /app; the /admin gate on server
+    // fns still enforces the admin list.
+    // Admins get a link at the top of /app.
+    navigate({ to: "/app" });
+  }, [ready, telegramId, navigate]);
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/40">
       <div className="mx-auto max-w-5xl px-6 py-16">
@@ -64,7 +79,7 @@ function Index() {
         </div>
 
         <p className="mt-12 text-center text-xs text-muted-foreground">
-          Prototype with mock data. Zoom & Telegram integrations wire up next.
+          Send <code>/start</code> to the bot in Telegram — it will open the right dashboard automatically.
         </p>
       </div>
     </div>
