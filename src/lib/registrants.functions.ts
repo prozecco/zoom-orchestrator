@@ -183,8 +183,10 @@ export const updateRegistrantStatus = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { sendTelegramMessage } = await import("./telegram.server");
 
-    const patch: Record<string, unknown> = { status: data.status };
-    if (data.status === "cancelled") patch.cancelled_at = new Date().toISOString();
+    const patch = {
+      status: data.status,
+      ...(data.status === "cancelled" ? { cancelled_at: new Date().toISOString() } : {}),
+    };
 
     const { data: saved, error } = await supabaseAdmin
       .from("registrants")
