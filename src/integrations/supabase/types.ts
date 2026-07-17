@@ -143,8 +143,47 @@ export type Database = {
           },
         ]
       }
+      registrant_notes: {
+        Row: {
+          author_name: string
+          author_tg_id: number | null
+          body: string
+          created_at: string
+          id: string
+          registrant_id: string
+          updated_at: string
+        }
+        Insert: {
+          author_name: string
+          author_tg_id?: number | null
+          body: string
+          created_at?: string
+          id?: string
+          registrant_id: string
+          updated_at?: string
+        }
+        Update: {
+          author_name?: string
+          author_tg_id?: number | null
+          body?: string
+          created_at?: string
+          id?: string
+          registrant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "registrant_notes_registrant_id_fkey"
+            columns: ["registrant_id"]
+            isOneToOne: false
+            referencedRelation: "registrants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       registrants: {
         Row: {
+          cancelled_at: string | null
           email: string
           id: string
           meeting_id: string | null
@@ -157,6 +196,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          cancelled_at?: string | null
           email: string
           id?: string
           meeting_id?: string | null
@@ -169,6 +209,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          cancelled_at?: string | null
           email?: string
           id?: string
           meeting_id?: string | null

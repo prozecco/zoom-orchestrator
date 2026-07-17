@@ -1,66 +1,64 @@
 
-This is a big integration touching backend, auth, and four separate surfaces. Here is the plan I'll execute end-to-end.
+## Phase 1 — Registrants overhaul (build now)
 
-## 1. Lovable Cloud + schema
+### 1.1 Schema (single migration)
+- Add `registrants.status` values: extend to `pending | on_hold | approved | denied | cancelled | attended`. Backfill `rejected` → `denied`.
+- Add `registrants.cancelled_at timestamptz null`.
+- New table `public.registrant_notes` — fields: `registrant_id`, `author_tg_id bigint`, `author_name`, `body text`, timestamps. RLS: read-all (admin surface only), writes via service role from server fns. GRANTs to authenticated + service_role.
+- New view (or server-side aggregation) `registrant_history` keyed by normalized email + telegram_id:
+  - `prior_count` (previous registrations by same email or telegram_id)
+  - `past_meetings` (topic + status + registered_at)
+  - `name_variants`, `handle_variants` (distinct historical values)
+- Realtime: add `registrant_notes` to `supabase_realtime` publication.
 
-Enable Lovable Cloud and add these tables (with RLS + grants):
+### 1.2 Server functions (`src/lib/registrants.functions.ts` + new `registrant-notes.functions.ts`)
+- `groupedRegistrants()` returns `{ pending, on_hold, approved, denied, cancelled, attended }`.
+  - Bucket rule: `pending` if `status='pending' AND age(registered_at) <= 3 days`; else `on_hold`.
+  - Automatic promotion happens at read time (no cron needed); optional `promoteStaleToOnHold()` admin action to persist.
+- `getRegistrantDetail({ id })` returns registrant + meeting + `history` + `notes`.
+- `addRegistrantNote({ registrantId, body, actorTelegramId })` — admin-gated.
+- Extend `updateRegistrantStatus` to accept `on_hold | cancelled` and log to audit.
 
-- `admins` — `telegram_id bigint pk`. Seeded with `6255415226`.
-- `meetings` — mirrors Zoom meeting (`zoom_id`, topic, host, host_email, start_time, duration_min, join_url, passcode, capacity, status, is_active, raw jsonb, synced_at). One row flagged `is_active`.
-- `registrants` — `id`, `meeting_id`, `telegram_id`, `telegram_user`, `name`, `email`, `phone`, `status` (`pending|approved|rejected|attended`), `registered_at`.
-- `messages` — `id`, `meeting_id`, `registrant_id` (null for admin broadcasts / admin thread), `from_role` (`host|attendee`), `from_name`, `text`, `telegram_message_id`, `created_at`. Chat is per-registrant (1:1 thread with host).
-- `audit_log` — actor, action, target, at.
+### 1.3 UI — `src/routes/admin.registrants.tsx`
+Two-pane layout:
+- Left: tabbed groups (Pending ≤3d · On hold >3d · Approved · Denied · Cancelled · Attended) with counts; search across all groups; row click opens the card.
+- Right: **Registrant card** (Sheet on mobile, side panel on desktop):
+  - Header: name, handle, email, phone, current status badge, quick actions (Approve / Deny / On hold / Cancel).
+  - History block: prior registrations count, past meetings list, name/handle change history.
+  - Notes: timeline of admin notes with author + timestamp; composer to add a note (realtime).
 
-## 2. Zoom S2S integration
+### 1.4 Attendee-side
+- `/app/status` gains a "Cancel my registration" button → sets `status='cancelled'`.
 
-- Secrets: `ZOOM_CLIENT_ID`, `ZOOM_CLIENT_SECRET`, `ZOOM_ACCOUNT_ID`, `ZOOM_MEETING_ID` (default `83483016779`).
-- Server helper `src/lib/zoom.server.ts`: OAuth token cache + `getMeeting(id)` + `listUpcomingMeetings(userId?)`.
-- Server functions in `src/lib/zoom.functions.ts`:
-  - `syncActiveMeeting()` — fetch `ZOOM_MEETING_ID`, upsert into `meetings` as `is_active`.
-  - `listMeetings()` — reads from DB (cached).
-  - `getActiveMeeting()` — reads active row.
-- Admin Schedule + Details screens read from these via TanStack Query; a "Sync from Zoom" button triggers `syncActiveMeeting`.
+---
 
-## 3. Telegram bot + role routing
+## Phase 2 — Chat overhaul (after Phase 1 lands)
 
-- Connect Telegram connector (gateway) — you'll pick the bot connection.
-- Public webhook `src/routes/api/public/telegram/webhook.ts` with `X-Telegram-Bot-Api-Secret-Token` derived from `TELEGRAM_API_KEY`.
-- Register webhook + BotFather Mini App URL via one-off gateway call.
-- Handlers:
-  - `/start` → checks `admins` table. If admin → reply with inline `web_app` button opening `${PUBLIC_URL}/admin`. Else → button opening `${PUBLIC_URL}/app`.
-  - `/help`, `/active`, `/setmeeting <id>` (admin only) → maps to `syncActiveMeeting`.
-  - Any other text message from a registered attendee → inserts into `messages` for their thread; from admin (reply) → inserted as host message and forwarded to that attendee via `sendMessage`.
-- Mini App receives Telegram initData through `window.Telegram.WebApp.initDataUnsafe`; a server fn `resolveViewer` validates the initData HMAC with the bot token and returns `{ role, telegramId, name }`. `/` landing route uses this to redirect (admin→`/admin`, user→`/app`); falls back to manual toggle when opened outside Telegram.
+### 2.1 Message model
+Add `messages.channel enum('dm' | 'meeting_1to1' | 'meeting_central')` and `messages.source enum('web' | 'telegram' | 'zoom')`. Backfill existing rows → `dm` / current source.
 
-## 4. Registration pipeline
+### 2.2 Zoom in-meeting chat via API
+- Extend Zoom S2S scopes needed: `chat_message:read:admin`, `chat_message:write:admin`, `meeting:read:admin` (user confirms scopes in Zoom Marketplace).
+- Poll endpoint `GET /chat/users/{hostId}/messages?to_contact=...` for 1:1 in-meeting; `GET /metrics/meetings/{id}/participants/qos` fallback for central chat is not available — central chat requires **Zoom Meeting Chat via Events**, so we'll subscribe to `meeting.chat_message_sent` webhook.
+- New route `src/routes/api/public/zoom/webhook.ts` — signature-verified (`ZOOM_WEBHOOK_SECRET_TOKEN` via `add_secret`) — writes chat + participant events into DB.
 
-- `submitRegistration` server fn: takes form fields + viewer's telegram id, inserts `registrants` row (status `pending`) tied to active meeting, writes audit entry, notifies admin group `-1004310551647` via Telegram.
-- `/app/` form calls it via `useMutation`; on success routes to `/app/status` which polls the viewer's registrant row.
-- Admin `/admin/registrants` lists live rows; Approve/Reject call `updateRegistrantStatus` server fn → updates DB, audit entry, and DMs the attendee via Telegram.
+### 2.3 Participants (Zoom webhooks)
+- Subscribe events: `meeting.participant_joined`, `meeting.participant_left`, `meeting.started`, `meeting.ended`.
+- New table `public.meeting_participants` (`meeting_id`, `zoom_user_id`, `name`, `email`, `joined_at`, `left_at`, `registrant_id nullable`).
+- Match to registrant by email (case-insensitive) on join.
 
-## 5. Live chat (1:1 threads)
+### 2.4 UI
+- `/admin/live`: three tabs — **Central chat** (whole meeting) · **1:1 in-meeting** (per participant) · **DMs** (per registrant, outside meeting). Participants panel driven by `meeting_participants` filtered to `left_at IS NULL`.
+- `/app/chat`: two tabs — **DM host** (current behavior) and **In-meeting chat** (visible only while user is a live participant).
 
-- Admin `/admin/live` gets a left-hand list of approved/attended registrants → selecting one opens their thread. Sends go through `sendChatMessage` server fn which inserts a `messages` row and pushes via Telegram `sendMessage` to that attendee's chat.
-- User `/app/chat` shows only that attendee's thread with the host; input calls same server fn tagged as attendee.
-- Incoming Telegram messages (webhook) resolve `telegram_id → registrant` and insert into the same thread; UI polls every 3s via TanStack Query (`refetchInterval`) — no realtime dep needed.
-
-## 6. UI cleanup / bugs
-
-- Replace all `Date.toLocaleString()` in route bodies with a stable `formatDate` util (fixed `en-US`, `UTC`) to fix the current SSR hydration mismatch on `/admin/schedule`.
-- Swap `src/lib/mock-data.ts` consumers over to live queries; delete the file once unused.
-
-## 7. Secrets you'll be prompted for
-
-After you approve this plan I'll:
-1. Enable Lovable Cloud (creates DB).
-2. Ask you to link the **Telegram** connector.
-3. Open a secure form for the Zoom secrets (`ZOOM_CLIENT_ID`, `ZOOM_CLIENT_SECRET`, `ZOOM_ACCOUNT_ID`, `ZOOM_MEETING_ID`).
+---
 
 ## Technical notes
 
-- Cloudflare Worker runtime: all Zoom + Telegram calls use `fetch`; no Node-only deps.
-- Telegram initData verification uses Web Crypto HMAC-SHA256 in a server fn.
-- `messages` polling uses TanStack Query `refetchInterval: 3000` while a thread is open; cheap and Worker-friendly.
-- Admin identity is hardcoded via `admins` table seeded with `6255415226`; add/remove by SQL migration later.
+- Bucketing uses `now() - registered_at > interval '3 days'` in SQL; UI shows the boundary date.
+- History aggregation is a server-side SQL query, not a materialized view, so it stays live without refresh.
+- Notes and status changes both write to `audit_log`.
+- All new tables get `GRANT` + RLS with policies scoped to server-role writes; admin identity is enforced in server fns via `isAdminId(actorTelegramId)`, matching existing pattern.
+- Zoom webhook uses the standard "URL validation" handshake — the route must respond to `endpoint.url_validation` events; secret stored via `add_secret` (shared secret flow).
 
-Approve and I'll start with Cloud + Telegram connector, then Zoom secrets.
+I'll start on Phase 1 as soon as you approve.
