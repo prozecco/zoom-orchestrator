@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { getActiveMeeting, listMeetings } from "@/lib/meetings.functions";
+import { getActiveMeeting } from "@/lib/meetings.functions";
 import { getStats } from "@/lib/viewer.functions";
 import { formatDateTime } from "@/lib/format";
 import { Calendar, Radio, UserPlus, Video } from "lucide-react";
@@ -16,7 +16,6 @@ export const Route = createFileRoute("/admin/")({
 function AdminHome() {
   const stats = useQuery({ queryKey: ["stats"], queryFn: () => getStats() });
   const active = useQuery({ queryKey: ["activeMeeting"], queryFn: () => getActiveMeeting() });
-  const meetings = useQuery({ queryKey: ["meetings"], queryFn: () => listMeetings() });
 
   const cards = [
     { label: "Total meetings", value: stats.data?.totalMeetings ?? 0, icon: Video },
