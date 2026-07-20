@@ -19,7 +19,7 @@ export const Route = createFileRoute("/admin/meetings")({
   component: MeetingsPage,
 });
 
-type Meeting = NonNullable<ReturnType<typeof useQuery<Awaited<ReturnType<typeof listMeetings>>>>["data"]>[number];
+type Meeting = Awaited<ReturnType<typeof listMeetings>>[number];
 
 function MeetingsPage() {
   const { telegramId } = useTelegramViewer();
