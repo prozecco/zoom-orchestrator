@@ -1,25 +1,13 @@
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+const supabaseUrl =
+  (typeof import.meta !== "undefined" && (import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL)) ||
+  (typeof process !== "undefined" && (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL)) ||
+  "https://xeipxyibruroppnqzxbo.supabase.co";
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn(
-    "[Supabase] Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY. " +
-      "Database features will not work. " +
-      "Set these in your .env file."
-  );
-}
+const supabaseAnonKey =
+  (typeof import.meta !== "undefined" && (import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.SUPABASE_ANON_KEY)) ||
+  (typeof process !== "undefined" && (process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY)) ||
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhlaXB4eWlicnVyb3BwbnF6eGJvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM3MDQ1NDMsImV4cCI6MjA5OTI4MDU0M30.yc5wLBfISB-n2cYM3_vO46EwGqpSvX3D1TDvE-aBJ7k";
 
-/**
- * Supabase client instance.
- *
- * Uses un-typed createClient for now to avoid strict generic mismatches
- * during rapid prototyping.  Once the schema stabilises, run
- * `npx supabase gen types typescript` to generate exact types and pass
- * them as the generic parameter.
- */
-export const supabase = createClient(
-  supabaseUrl ?? "https://placeholder.supabase.co",
-  supabaseAnonKey ?? "placeholder-key"
-);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
