@@ -50,42 +50,22 @@ function AdminHome() {
         <Card className="lg:col-span-2">
           <CardHeader className="flex flex-row items-start justify-between space-y-0">
             <div>
-              <CardTitle>Active meeting</CardTitle>
-              <CardDescription>Currently marked live</CardDescription>
+              <CardTitle>{m ? "Next / active meeting" : "No active meeting"}</CardTitle>
+              <CardDescription>
+                {m ? `${formatDateTime(m.start_time)} · ${m.host_email ?? "—"}` : "Sync from Zoom in Meetings"}
+              </CardDescription>
             </div>
             {m && <Badge className="bg-emerald-500 hover:bg-emerald-500">Live</Badge>}
           </CardHeader>
-          <CardContent className="space-y-4">
-            {m ? (
-              <>
-                <div>
-                  <div className="text-lg font-semibold">{m.topic}</div>
-                  <div className="text-sm text-muted-foreground">
-                    Meeting ID {m.zoom_id} · {formatDateTime(m.start_time)}
-                  </div>
-                </div>
-                <div className="grid grid-cols-3 gap-3 text-sm">
-                  <div className="rounded-md border p-3">
-                    <div className="text-xs text-muted-foreground">Capacity</div>
-                    <div className="font-semibold">{m.capacity ?? "—"}</div>
-                  </div>
-                  <div className="rounded-md border p-3">
-                    <div className="text-xs text-muted-foreground">Duration</div>
-                    <div className="font-semibold">{m.duration_min ?? "—"} min</div>
-                  </div>
-                  <div className="rounded-md border p-3">
-                    <div className="text-xs text-muted-foreground">Passcode</div>
-                    <div className="font-semibold">{m.passcode ?? "—"}</div>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button asChild><Link to="/admin/live">Open live view</Link></Button>
-                  <Button variant="outline" asChild><Link to="/admin/registrants">Review registrants</Link></Button>
-                </div>
-              </>
-            ) : (
-              <p className="text-sm text-muted-foreground">No active meeting yet — sync from Zoom in Tools.</p>
+          <CardContent className="space-y-3">
+            {m && (
+              <div className="text-lg font-semibold">{m.topic}</div>
             )}
+            <div className="flex flex-wrap gap-2">
+              <Button asChild><Link to="/admin/meetings">Open meetings</Link></Button>
+              {m && <Button variant="outline" asChild><Link to="/admin/live">Live view</Link></Button>}
+              <Button variant="outline" asChild><Link to="/admin/registrants">Review registrants</Link></Button>
+            </div>
           </CardContent>
         </Card>
 
@@ -103,29 +83,6 @@ function AdminHome() {
           </CardContent>
         </Card>
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Upcoming schedule</CardTitle>
-          <CardDescription>Meetings synced from Zoom</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {(meetings.data ?? []).slice(0, 5).map((mm) => (
-            <div key={mm.id} className="flex items-center justify-between rounded-md border p-3">
-              <div>
-                <div className="font-medium">{mm.topic}</div>
-                <div className="text-xs text-muted-foreground">
-                  {formatDateTime(mm.start_time)} · {mm.host_email ?? "—"}
-                </div>
-              </div>
-              <Badge variant="outline">{mm.duration_min ?? "—"} min</Badge>
-            </div>
-          ))}
-          {(meetings.data ?? []).length === 0 && (
-            <p className="text-sm text-muted-foreground">No meetings yet.</p>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }
