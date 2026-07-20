@@ -17,6 +17,11 @@ dist-ssr
 *.local
 .env
 
+# Agent Scratch & Screenshots
+.agents/
+Screenshots/
+.tempmediaStorage/
+
 # Wrangler / Cloudflare
 .wrangler/
 .dev.vars
