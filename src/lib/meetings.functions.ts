@@ -32,7 +32,7 @@ const SyncInput = z.object({
 });
 
 export const syncActiveMeeting = createServerFn({ method: "POST" })
-  .inputValidator((raw) => SyncInput.parse(raw))
+  .validator((raw) => SyncInput.parse(raw))
   .handler(async ({ data }) => {
     if (data.actorTelegramId && !isAdminId(data.actorTelegramId)) {
       throw new Error("Not authorized");
@@ -82,7 +82,7 @@ const SyncUpcomingInput = z.object({
 });
 
 export const syncUpcomingMeetings = createServerFn({ method: "POST" })
-  .inputValidator((raw) => SyncUpcomingInput.parse(raw))
+  .validator((raw) => SyncUpcomingInput.parse(raw))
   .handler(async ({ data }) => {
     if (data.actorTelegramId && !isAdminId(data.actorTelegramId)) {
       throw new Error("Not authorized");

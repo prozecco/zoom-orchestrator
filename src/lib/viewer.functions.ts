@@ -84,7 +84,7 @@ const RegisterWebhookInput = z.object({
 });
 
 export const registerTelegramWebhook = createServerFn({ method: "POST" })
-  .inputValidator((raw) => RegisterWebhookInput.parse(raw))
+  .validator((raw) => RegisterWebhookInput.parse(raw))
   .handler(async ({ data }) => {
     if (!isAdminId(data.actorTelegramId)) throw new Error("Not authorized");
     const { telegramCall, deriveTelegramWebhookSecret } = await import("./telegram.server");
