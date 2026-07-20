@@ -193,4 +193,59 @@ export const testZoomAuth = createServerFn({ method: "POST" })
     };
   });
 
+export const getZoomEnvConfig = createServerFn({ method: "GET" }).handler(async () => {
+  return {
+    accountId: process.env.ZOOM_ACCOUNT_ID ?? "Xmxl4CRXRLqrvr3WXlUqAw",
+    clientId: process.env.ZOOM_CLIENT_ID ?? "KJVgvj9TQHOT5oIBkl6Z7g",
+    clientSecret: process.env.ZOOM_CLIENT_SECRET ? `${process.env.ZOOM_CLIENT_SECRET.slice(0, 4)}...${process.env.ZOOM_CLIENT_SECRET.slice(-4)}` : "z8S2...z",
+    meetingId: process.env.ZOOM_MEETING_ID ?? "83483016779",
+    regLink: process.env.ZOOM_REGISTRATION_LINK ?? "https://us06web.zoom.us/meeting/register/xHiSkLTMQLq0an5MdrWlZw",
+    webhookSecret: process.env.ZOOM_WEBHOOK_SECRET ?? "YYJPbMz0Q6GazVd_DeBMIQ",
+  };
+});
+
+export const syncZoomDirectlyFromEnv = createServerFn({ method: "POST" }).handler(async () => {
+  const { fetchZoomMeeting } = await import("./zoom.server");
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+  const zoomMeetingId = (process.env.ZOOM_MEETING_ID || "83483016779").trim();
+
+  // Fetch from Zoom API directly
+  const meeting = await fetchZoomMeeting(zoomMeetingId);
+
+  // Clear existing active meeting flag
+  await supabaseAdmin.from("meetings").update({ is_active: false }).eq("is_active", true);
+
+  const row = {
+    zoom_id: String(meeting.id),
+    topic: meeting.topic ?? "• ꜱᴜɴᴄʟᴏᴜᴅꜱ – １７６６ •",
+    host_email: meeting.host_email ?? "sunset-1766@outlook.com",
+    start_time: meeting.start_time ?? new Date().toISOString(),
+    duration_min: meeting.duration ?? 1440,
+    join_url: meeting.join_url ?? "https://us06web.zoom.us/j/83483016779?pwd=unIqGF0YosYvRkZsL8KQE4d07tSZEF.1",
+    passcode: meeting.password ?? "1766",
+    status: meeting.status ?? "started",
+    is_active: true,
+    raw: meeting.raw ?? meeting,
+    synced_at: new Date().toISOString(),
+  };
+
+  const { data: saved, error } = await supabaseAdmin
+    .from("meetings")
+    .upsert(row as never, { onConflict: "zoom_id" })
+    .select()
+    .single();
+
+  if (error) throw new Error(`Supabase DB Error: ${error.message}`);
+
+  await supabaseAdmin.from("audit_log").insert({
+    actor: "system:env_sync",
+    action: "Synced active meeting from Zoom API (.env)",
+    target: row.zoom_id,
+  });
+
+  return saved;
+});
+
+
 
