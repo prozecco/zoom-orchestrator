@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/registrants")({
+  ssr: false,
   component: RegistrantsPage,
 });
 
@@ -70,6 +71,8 @@ const filterChips = [
 ];
 
 function RegistrantsPage() {
+  const { telegramId, user } = useTelegramViewer();
+  const qc = useQueryClient();
   const [q, setQ] = useState("");
   const [activeFilter, setActiveFilter] = useState("all-pending");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());

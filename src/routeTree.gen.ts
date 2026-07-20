@@ -18,12 +18,12 @@ import { Route as AppStatusRouteImport } from './routes/app.status'
 import { Route as AppMessagesRouteImport } from './routes/app.messages'
 import { Route as AppChatRouteImport } from './routes/app.chat'
 import { Route as AdminToolsRouteImport } from './routes/admin.tools'
-import { Route as AdminScheduleRouteImport } from './routes/admin.schedule'
 import { Route as AdminRegistrantsRouteImport } from './routes/admin.registrants'
+import { Route as AdminMeetingsRouteImport } from './routes/admin.meetings'
 import { Route as AdminLiveRouteImport } from './routes/admin.live'
-import { Route as AdminDetailsRouteImport } from './routes/admin.details'
 import { Route as AdminChatRouteImport } from './routes/admin.chat'
 import { Route as AdminAuditRouteImport } from './routes/admin.audit'
+import { Route as ApiPublicTelegramWebhookRouteImport } from './routes/api/public/telegram/webhook'
 
 const AppRoute = AppRouteImport.update({
   id: '/app',
@@ -70,24 +70,19 @@ const AdminToolsRoute = AdminToolsRouteImport.update({
   path: '/tools',
   getParentRoute: () => AdminRoute,
 } as any)
-const AdminScheduleRoute = AdminScheduleRouteImport.update({
-  id: '/schedule',
-  path: '/schedule',
-  getParentRoute: () => AdminRoute,
-} as any)
 const AdminRegistrantsRoute = AdminRegistrantsRouteImport.update({
   id: '/registrants',
   path: '/registrants',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminMeetingsRoute = AdminMeetingsRouteImport.update({
+  id: '/meetings',
+  path: '/meetings',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminLiveRoute = AdminLiveRouteImport.update({
   id: '/live',
   path: '/live',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminDetailsRoute = AdminDetailsRouteImport.update({
-  id: '/details',
-  path: '/details',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminChatRoute = AdminChatRouteImport.update({
@@ -100,6 +95,12 @@ const AdminAuditRoute = AdminAuditRouteImport.update({
   path: '/audit',
   getParentRoute: () => AdminRoute,
 } as any)
+const ApiPublicTelegramWebhookRoute =
+  ApiPublicTelegramWebhookRouteImport.update({
+    id: '/api/public/telegram/webhook',
+    path: '/api/public/telegram/webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -107,31 +108,31 @@ export interface FileRoutesByFullPath {
   '/app': typeof AppRouteWithChildren
   '/admin/audit': typeof AdminAuditRoute
   '/admin/chat': typeof AdminChatRoute
-  '/admin/details': typeof AdminDetailsRoute
   '/admin/live': typeof AdminLiveRoute
+  '/admin/meetings': typeof AdminMeetingsRoute
   '/admin/registrants': typeof AdminRegistrantsRoute
-  '/admin/schedule': typeof AdminScheduleRoute
   '/admin/tools': typeof AdminToolsRoute
   '/app/chat': typeof AppChatRoute
   '/app/messages': typeof AppMessagesRoute
   '/app/status': typeof AppStatusRoute
   '/admin/': typeof AdminIndexRoute
   '/app/': typeof AppIndexRoute
+  '/api/public/telegram/webhook': typeof ApiPublicTelegramWebhookRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin/audit': typeof AdminAuditRoute
   '/admin/chat': typeof AdminChatRoute
-  '/admin/details': typeof AdminDetailsRoute
   '/admin/live': typeof AdminLiveRoute
+  '/admin/meetings': typeof AdminMeetingsRoute
   '/admin/registrants': typeof AdminRegistrantsRoute
-  '/admin/schedule': typeof AdminScheduleRoute
   '/admin/tools': typeof AdminToolsRoute
   '/app/chat': typeof AppChatRoute
   '/app/messages': typeof AppMessagesRoute
   '/app/status': typeof AppStatusRoute
   '/admin': typeof AdminIndexRoute
   '/app': typeof AppIndexRoute
+  '/api/public/telegram/webhook': typeof ApiPublicTelegramWebhookRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -140,16 +141,16 @@ export interface FileRoutesById {
   '/app': typeof AppRouteWithChildren
   '/admin/audit': typeof AdminAuditRoute
   '/admin/chat': typeof AdminChatRoute
-  '/admin/details': typeof AdminDetailsRoute
   '/admin/live': typeof AdminLiveRoute
+  '/admin/meetings': typeof AdminMeetingsRoute
   '/admin/registrants': typeof AdminRegistrantsRoute
-  '/admin/schedule': typeof AdminScheduleRoute
   '/admin/tools': typeof AdminToolsRoute
   '/app/chat': typeof AppChatRoute
   '/app/messages': typeof AppMessagesRoute
   '/app/status': typeof AppStatusRoute
   '/admin/': typeof AdminIndexRoute
   '/app/': typeof AppIndexRoute
+  '/api/public/telegram/webhook': typeof ApiPublicTelegramWebhookRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -159,31 +160,31 @@ export interface FileRouteTypes {
     | '/app'
     | '/admin/audit'
     | '/admin/chat'
-    | '/admin/details'
     | '/admin/live'
+    | '/admin/meetings'
     | '/admin/registrants'
-    | '/admin/schedule'
     | '/admin/tools'
     | '/app/chat'
     | '/app/messages'
     | '/app/status'
     | '/admin/'
     | '/app/'
+    | '/api/public/telegram/webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/admin/audit'
     | '/admin/chat'
-    | '/admin/details'
     | '/admin/live'
+    | '/admin/meetings'
     | '/admin/registrants'
-    | '/admin/schedule'
     | '/admin/tools'
     | '/app/chat'
     | '/app/messages'
     | '/app/status'
     | '/admin'
     | '/app'
+    | '/api/public/telegram/webhook'
   id:
     | '__root__'
     | '/'
@@ -191,22 +192,23 @@ export interface FileRouteTypes {
     | '/app'
     | '/admin/audit'
     | '/admin/chat'
-    | '/admin/details'
     | '/admin/live'
+    | '/admin/meetings'
     | '/admin/registrants'
-    | '/admin/schedule'
     | '/admin/tools'
     | '/app/chat'
     | '/app/messages'
     | '/app/status'
     | '/admin/'
     | '/app/'
+    | '/api/public/telegram/webhook'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRouteWithChildren
   AppRoute: typeof AppRouteWithChildren
+  ApiPublicTelegramWebhookRoute: typeof ApiPublicTelegramWebhookRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -274,13 +276,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminToolsRouteImport
       parentRoute: typeof AdminRoute
     }
-    '/admin/schedule': {
-      id: '/admin/schedule'
-      path: '/schedule'
-      fullPath: '/admin/schedule'
-      preLoaderRoute: typeof AdminScheduleRouteImport
-      parentRoute: typeof AdminRoute
-    }
     '/admin/registrants': {
       id: '/admin/registrants'
       path: '/registrants'
@@ -288,18 +283,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRegistrantsRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/meetings': {
+      id: '/admin/meetings'
+      path: '/meetings'
+      fullPath: '/admin/meetings'
+      preLoaderRoute: typeof AdminMeetingsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/live': {
       id: '/admin/live'
       path: '/live'
       fullPath: '/admin/live'
       preLoaderRoute: typeof AdminLiveRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/details': {
-      id: '/admin/details'
-      path: '/details'
-      fullPath: '/admin/details'
-      preLoaderRoute: typeof AdminDetailsRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/chat': {
@@ -316,16 +311,22 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAuditRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/api/public/telegram/webhook': {
+      id: '/api/public/telegram/webhook'
+      path: '/api/public/telegram/webhook'
+      fullPath: '/api/public/telegram/webhook'
+      preLoaderRoute: typeof ApiPublicTelegramWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 interface AdminRouteChildren {
   AdminAuditRoute: typeof AdminAuditRoute
   AdminChatRoute: typeof AdminChatRoute
-  AdminDetailsRoute: typeof AdminDetailsRoute
   AdminLiveRoute: typeof AdminLiveRoute
+  AdminMeetingsRoute: typeof AdminMeetingsRoute
   AdminRegistrantsRoute: typeof AdminRegistrantsRoute
-  AdminScheduleRoute: typeof AdminScheduleRoute
   AdminToolsRoute: typeof AdminToolsRoute
   AdminIndexRoute: typeof AdminIndexRoute
 }
@@ -333,10 +334,9 @@ interface AdminRouteChildren {
 const AdminRouteChildren: AdminRouteChildren = {
   AdminAuditRoute: AdminAuditRoute,
   AdminChatRoute: AdminChatRoute,
-  AdminDetailsRoute: AdminDetailsRoute,
   AdminLiveRoute: AdminLiveRoute,
+  AdminMeetingsRoute: AdminMeetingsRoute,
   AdminRegistrantsRoute: AdminRegistrantsRoute,
-  AdminScheduleRoute: AdminScheduleRoute,
   AdminToolsRoute: AdminToolsRoute,
   AdminIndexRoute: AdminIndexRoute,
 }
@@ -363,6 +363,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRouteWithChildren,
   AppRoute: AppRouteWithChildren,
+  ApiPublicTelegramWebhookRoute: ApiPublicTelegramWebhookRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
