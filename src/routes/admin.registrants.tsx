@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +15,7 @@ import { formatBangkokRegistrationTime } from "@/lib/time-formatter";
 import { Search, Hash, Clock, Smartphone, Globe, Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useTelegramViewer } from "@/hooks/useTelegramViewer";
 
 export const Route = createFileRoute("/admin/registrants")({
   ssr: false,

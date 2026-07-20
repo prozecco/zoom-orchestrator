@@ -18,10 +18,10 @@ function AdminHome() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const cards = [
-    { label: "Total meetings", value: stats.data?.totalMeetings ?? 0, icon: Video },
-    { label: "Pending", value: stats.data?.pending ?? 0, icon: Calendar },
-    { label: "Registrants (week)", value: stats.data?.registrantsThisWeek ?? 0, icon: UserPlus },
-    { label: "Live now", value: stats.data?.liveNow ?? 0, icon: Radio },
+    { label: "Total meetings", value: stats.totalMeetings, icon: Video },
+    { label: "Pending", value: pendingCount, icon: Calendar },
+    { label: "Registrants (week)", value: stats.registrantsThisWeek, icon: UserPlus },
+    { label: "Live now", value: stats.liveNow, icon: Radio },
   ];
 
   // Full merged meetings dataset (active + scheduled + past)
