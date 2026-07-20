@@ -15,6 +15,7 @@ import { getMeetingParticipants } from "@/lib/telegram-sync";
 import { activeMeeting } from "@/lib/mock-data";
 
 export const Route = createFileRoute("/app/chat")({
+  ssr: false,
   component: LiveChatPage,
 });
 

@@ -16,6 +16,7 @@ import { resolveIdentity } from "@/lib/identity-resolver";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/app/")({
+  ssr: false,
   component: UnifiedAppPage,
 });
 

@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +13,7 @@ export const Route = createFileRoute("/admin/live")({
 });
 
 function LivePage() {
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const attended = registrants.filter((r) => r.status === "approved" || r.status === "attended");
 
   return (
@@ -21,8 +21,8 @@ function LivePage() {
       <Card>
         <CardHeader className="flex flex-row items-start justify-between space-y-0">
           <div>
-            <CardTitle>{active.data?.topic ?? "No active meeting"}</CardTitle>
-            <CardDescription>{active.data ? `Meeting ID ${active.data.zoom_id}` : "Sync a meeting to start"}</CardDescription>
+            <CardTitle>{activeMeeting.topic}</CardTitle>
+            <CardDescription>Meeting ID {activeMeeting.id} · Host: {activeMeeting.host}</CardDescription>
           </div>
           <Badge className="bg-emerald-500 hover:bg-emerald-500 font-bold">● Live</Badge>
         </CardHeader>
@@ -52,7 +52,12 @@ function LivePage() {
             <div className="mb-2 text-sm font-medium">Joined Attendees ({attended.length})</div>
             <div className="flex flex-wrap gap-2">
               {attended.map((a) => (
-                <Badge key={a.id} variant={a.id === activeId ? "default" : "secondary"} className="cursor-pointer" onClick={() => setSelectedId(a.id)}>
+                <Badge
+                  key={a.id}
+                  variant={a.id === selectedId ? "default" : "secondary"}
+                  className="cursor-pointer"
+                  onClick={() => setSelectedId(a.id)}
+                >
                   {a.name}
                 </Badge>
               ))}

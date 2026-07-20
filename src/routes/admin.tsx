@@ -3,6 +3,7 @@ import { Shield, Home, Calendar, Info, Users, Radio, ScrollText, Wrench, ArrowLe
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/admin")({
+  ssr: false,
   head: () => ({
     meta: [{ title: "Admin Dashboard — Meeting Hub" }],
   }),

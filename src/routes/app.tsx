@@ -6,6 +6,7 @@ import { useTelegram } from "@/hooks/useTelegram";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/app")({
+  ssr: false,
   head: () => ({ meta: [{ title: "Attendee — Meeting Hub" }] }),
   component: AppLayout,
 });

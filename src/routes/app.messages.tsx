@@ -15,6 +15,7 @@ import { getContacts, addContact, findUserByUsername } from "@/lib/telegram-sync
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/app/messages")({
+  ssr: false,
   component: MessagesPage,
 });
 
