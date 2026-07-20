@@ -85,6 +85,28 @@ export interface TelegramContextValue {
 
 const TelegramContext = createContext<TelegramContextValue | null>(null);
 
+const FALLBACK_CONTEXT: TelegramContextValue = {
+  webApp: null,
+  isTelegram: false,
+  user: MOCK_USER,
+  initData: "",
+  themeParams: MOCK_THEME,
+  colorScheme: "dark",
+  haptic: null,
+  mainButton: null,
+  backButton: null,
+  openLink: (url: string) => {
+    if (typeof window !== "undefined") window.open(url, "_blank", "noopener");
+  },
+  showAlert: (message: string) => {
+    if (typeof window !== "undefined") alert(message);
+  },
+  showConfirm: (message: string): Promise<boolean> => {
+    return Promise.resolve(typeof window !== "undefined" ? confirm(message) : true);
+  },
+  close: () => {},
+};
+
 // ---------------------------------------------------------------------------
 // Provider
 // ---------------------------------------------------------------------------
@@ -93,7 +115,7 @@ export function TelegramProvider({ children }: { children: ReactNode }) {
   const [colorScheme, setColorScheme] = useState<"light" | "dark">("dark");
 
   useEffect(() => {
-    const tg = window.Telegram?.WebApp;
+    const tg = typeof window !== "undefined" ? (window as any).Telegram?.WebApp : undefined;
     if (tg) {
       // Signal that the Mini App is ready
       tg.ready();
@@ -152,14 +174,14 @@ export function TelegramProvider({ children }: { children: ReactNode }) {
       openLink: (url: string) => {
         if (webApp) {
           webApp.openLink(url);
-        } else {
+        } else if (typeof window !== "undefined") {
           window.open(url, "_blank", "noopener");
         }
       },
       showAlert: (message: string) => {
         if (webApp) {
           webApp.showAlert(message);
-        } else {
+        } else if (typeof window !== "undefined") {
           alert(message);
         }
       },
@@ -167,8 +189,10 @@ export function TelegramProvider({ children }: { children: ReactNode }) {
         return new Promise((resolve) => {
           if (webApp) {
             webApp.showConfirm(message, (confirmed) => resolve(confirmed));
-          } else {
+          } else if (typeof window !== "undefined") {
             resolve(confirm(message));
+          } else {
+            resolve(true);
           }
         });
       },
@@ -193,19 +217,9 @@ export function TelegramProvider({ children }: { children: ReactNode }) {
 
 /**
  * Access the Telegram WebApp context from anywhere inside the app tree.
- *
- * @example
- * ```tsx
- * const { user, haptic, openLink } = useTelegram();
- * ```
+ * Falls back to MOCK context if called outside TelegramProvider, preventing SSR crashes.
  */
 export function useTelegram(): TelegramContextValue {
   const ctx = useContext(TelegramContext);
-  if (!ctx) {
-    throw new Error(
-      "useTelegram() must be used within a <TelegramProvider>. " +
-        "Wrap your app root with <TelegramProvider>."
-    );
-  }
-  return ctx;
+  return ctx ?? FALLBACK_CONTEXT;
 }
