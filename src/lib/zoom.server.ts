@@ -4,7 +4,7 @@
 type ZoomTokenCache = { token: string; expiresAt: number };
 let cache: ZoomTokenCache | null = null;
 
-async function getZoomToken(): Promise<string> {
+export async function getZoomToken(): Promise<string> {
   const now = Date.now();
   if (cache && cache.expiresAt > now + 30_000) return cache.token;
 
@@ -12,13 +12,18 @@ async function getZoomToken(): Promise<string> {
   const clientSecret = process.env.ZOOM_CLIENT_SECRET?.trim();
   const accountId = process.env.ZOOM_ACCOUNT_ID?.trim();
   if (!clientId || !clientSecret || !accountId) {
-    throw new Error("Zoom credentials are not configured");
+    throw new Error(`Zoom credentials incomplete (ClientID: ${clientId ? "OK" : "MISSING"}, ClientSecret: ${clientSecret ? "OK" : "MISSING"}, AccountID: ${accountId ? "OK" : "MISSING"})`);
   }
-  const basic = btoa(`${clientId}:${clientSecret}`);
+  
+  const basic = typeof Buffer !== "undefined"
+    ? Buffer.from(`${clientId}:${clientSecret}`).toString("base64")
+    : btoa(`${clientId}:${clientSecret}`);
+
   const body = new URLSearchParams({
     grant_type: "account_credentials",
     account_id: accountId,
   });
+
   const res = await fetch("https://zoom.us/oauth/token", {
     method: "POST",
     headers: {
@@ -28,13 +33,32 @@ async function getZoomToken(): Promise<string> {
     },
     body,
   });
+
   if (!res.ok) {
     const errBody = await res.text();
-    throw new Error(`Zoom OAuth failed [${res.status}] (clientId len=${clientId.length}, accountId len=${accountId.length}): ${errBody}`);
+    throw new Error(`Zoom OAuth Authentication Failed [HTTP ${res.status}]: ${errBody}`);
   }
+
   const data = (await res.json()) as { access_token: string; expires_in: number };
   cache = { token: data.access_token, expiresAt: now + data.expires_in * 1000 };
   return cache.token;
+}
+
+export async function testZoomOAuthConnection(): Promise<{ success: boolean; token: string; message: string }> {
+  try {
+    const token = await getZoomToken();
+    return {
+      success: true,
+      token,
+      message: "Zoom Server-to-Server OAuth Token successfully issued!",
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      token: "",
+      message: err.message || "Unknown error during Zoom OAuth test",
+    };
+  }
 }
 
 async function zoomFetch(path: string): Promise<Response> {

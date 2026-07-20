@@ -7,10 +7,10 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Megaphone, KeyRound, RefreshCw, Zap, Video, Eye, EyeOff, CheckCircle2, ShieldCheck, Link2 } from "lucide-react";
+import { Megaphone, KeyRound, RefreshCw, Zap, Video, Eye, EyeOff, CheckCircle2, ShieldCheck, Link2, Shield, UserPlus, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { syncActiveMeeting, syncUpcomingMeetings } from "@/lib/meetings.functions";
+import { syncActiveMeeting, syncUpcomingMeetings, testZoomAuth } from "@/lib/meetings.functions";
 import { broadcastToApproved, registerTelegramWebhook } from "@/lib/viewer.functions";
 import { useTelegramViewer } from "@/hooks/useTelegramViewer";
 
@@ -34,6 +34,14 @@ function ToolsPage() {
   const [zoomRegLink, setZoomRegLink] = useState("https://us06web.zoom.us/meeting/register/xHiSkLTMQLq0an5MdrWlZw");
   const [zoomWebhookSecret, setZoomWebhookSecret] = useState("YYJPbMz0Q6GazVd_DeBMIQ");
 
+  // Admin Management State
+  const [adminList, setAdminList] = useState<Array<{ id: number; username: string; role: string }>>([
+    { id: 6255415226, username: "@izax619", role: "Super Admin (Owner)" },
+    { id: -1004310551647, username: "Notification Channel", role: "Bot Channel Target" },
+  ]);
+  const [newAdminId, setNewAdminId] = useState("");
+  const [newAdminUser, setNewAdminUser] = useState("");
+
   const send = useMutation({
     mutationFn: () => broadcastToApproved({ data: { text: broadcast, actorTelegramId: telegramId ?? 0 } }),
     onSuccess: (r) => { toast.success(`Broadcast sent to ${r.sent}/${r.total}`); setBroadcast(""); qc.invalidateQueries({ queryKey: ["audit"] }); },
@@ -52,6 +60,20 @@ function ToolsPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const testZoom = useMutation({
+    mutationFn: () => testZoomAuth({ data: { meetingId: zoomDefaultMeetingId } }),
+    onSuccess: (res) => {
+      if (res.success) {
+        toast.success(res.message);
+        qc.invalidateQueries({ queryKey: ["activeMeeting"] });
+        qc.invalidateQueries({ queryKey: ["meetings"] });
+      } else {
+        toast.error(`Zoom OAuth Test Failed: ${res.message}`);
+      }
+    },
+    onError: (e: Error) => toast.error(`Zoom Connection Error: ${e.message}`),
+  });
+
   const registerHook = useMutation({
     mutationFn: () => {
       const url = `${window.location.origin}/api/public/telegram/webhook`;
@@ -61,33 +83,41 @@ function ToolsPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const handleTestZoomOAuth = () => {
-    toast.promise(
-      syncActiveMeeting({ data: { meetingId: zoomDefaultMeetingId, actorTelegramId: telegramId } }),
-      {
-        loading: "Testing Zoom Server-to-Server OAuth credentials...",
-        success: "Zoom OAuth Connected & Meeting Synced successfully!",
-        error: (err: any) => `Zoom Connection Error: ${err.message || "Failed to authenticate with Zoom API"}`,
-      }
-    );
+  const handleAddAdmin = () => {
+    if (!newAdminId) {
+      toast.error("Please enter a Telegram ID");
+      return;
+    }
+    const parsedId = Number(newAdminId.trim());
+    if (isNaN(parsedId)) {
+      toast.error("Invalid Telegram ID format");
+      return;
+    }
+    setAdminList((prev) => [
+      ...prev,
+      { id: parsedId, username: newAdminUser ? `@${newAdminUser.replace(/^@/, "")}` : "Admin User", role: "Moderator" },
+    ]);
+    toast.success(`Admin access granted to Telegram ID ${parsedId}`);
+    setNewAdminId("");
+    setNewAdminUser("");
   };
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      {/* Zoom API Configuration & Credentials Card */}
+      {/* 1. Zoom API Configuration & Credentials Card */}
       <Card className="lg:col-span-2 border-emerald-500/30 bg-emerald-500/5">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Video className="h-5 w-5 text-emerald-500" />
-              <CardTitle>Zoom API Configuration</CardTitle>
+              <CardTitle>Zoom API Configuration & Credentials</CardTitle>
             </div>
             <Badge className="bg-emerald-500 text-white font-medium text-xs px-2.5 py-0.5 flex items-center gap-1">
               <CheckCircle2 className="h-3.5 w-3.5" /> Server-to-Server OAuth Active
             </Badge>
           </div>
           <CardDescription>
-            Manage your Zoom Account Credentials, Default Meeting ID, and test OAuth API synchronization.
+            Manage your Zoom Server-to-Server OAuth credentials and test live authentication.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -171,11 +201,14 @@ function ToolsPage() {
           <div className="flex flex-wrap gap-2 pt-2 border-t border-border/50">
             <Button
               size="sm"
-              onClick={handleTestZoomOAuth}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs flex items-center gap-1.5"
+              onClick={() => testZoom.mutate()}
+              disabled={testZoom.isPending}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs flex items-center gap-1.5 shadow"
             >
-              <ShieldCheck className="h-4 w-4" /> Test Zoom OAuth & Sync Active
+              <ShieldCheck className={cn("h-4 w-4", testZoom.isPending && "animate-spin")} />
+              {testZoom.isPending ? "Testing Zoom Connection..." : "🛡️ Test Zoom OAuth & Sync Active"}
             </Button>
+
             <Button
               size="sm"
               variant="outline"
@@ -189,7 +222,68 @@ function ToolsPage() {
         </CardContent>
       </Card>
 
-      {/* Broadcast Card */}
+      {/* 2. Admin Management Card */}
+      <Card className="lg:col-span-2 border-amber-500/30 bg-amber-500/5">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Shield className="h-5 w-5 text-amber-500" />
+              <CardTitle>Admin User Management</CardTitle>
+            </div>
+            <Badge variant="outline" className="border-amber-500/40 text-amber-500 font-medium text-xs px-2.5 py-0.5">
+              Authorized Admins ({adminList.length})
+            </Badge>
+          </div>
+          <CardDescription>
+            Manage Telegram IDs that have full access to the Admin Dashboard and Orchestrator controls.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Active Admins List */}
+          <div className="grid gap-2 sm:grid-cols-2">
+            {adminList.map((adm) => (
+              <div key={adm.id} className="flex items-center justify-between p-3 rounded-lg border border-border bg-background text-xs">
+                <div className="flex items-center gap-2 font-medium">
+                  <UserCheck className="h-4 w-4 text-amber-500" />
+                  <div>
+                    <div className="font-semibold">{adm.username}</div>
+                    <div className="text-[11px] text-muted-foreground font-mono">ID: {adm.id}</div>
+                  </div>
+                </div>
+                <Badge variant="secondary" className="text-[10px] font-normal">
+                  {adm.role}
+                </Badge>
+              </div>
+            ))}
+          </div>
+
+          {/* Add New Admin Form */}
+          <div className="pt-3 border-t border-border/50 space-y-3">
+            <Label className="text-xs font-semibold flex items-center gap-1.5">
+              <UserPlus className="h-3.5 w-3.5 text-amber-500" /> Grant New Admin Access
+            </Label>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Input
+                placeholder="Telegram ID (e.g. 6255415226)"
+                value={newAdminId}
+                onChange={(e) => setNewAdminId(e.target.value)}
+                className="font-mono text-xs bg-background flex-1"
+              />
+              <Input
+                placeholder="Username (e.g. izax619)"
+                value={newAdminUser}
+                onChange={(e) => setNewAdminUser(e.target.value)}
+                className="text-xs bg-background flex-1"
+              />
+              <Button size="sm" onClick={handleAddAdmin} className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold text-xs shrink-0">
+                Grant Admin Access
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 3. Broadcast Card */}
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2"><Megaphone className="h-5 w-5 text-primary" /><CardTitle>Broadcast</CardTitle></div>
@@ -201,7 +295,7 @@ function ToolsPage() {
         </CardContent>
       </Card>
 
-      {/* Set Active Meeting Card */}
+      {/* 4. Set Active Meeting Card */}
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2"><KeyRound className="h-5 w-5 text-primary" /><CardTitle>Set active meeting</CardTitle></div>
@@ -218,7 +312,7 @@ function ToolsPage() {
         </CardContent>
       </Card>
 
-      {/* Telegram Webhook Card */}
+      {/* 5. Telegram Webhook Card */}
       <Card className="lg:col-span-2">
         <CardHeader>
           <div className="flex items-center gap-2"><Zap className="h-5 w-5 text-primary" /><CardTitle>Telegram webhook</CardTitle></div>

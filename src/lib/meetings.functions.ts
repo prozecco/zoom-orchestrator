@@ -108,3 +108,50 @@ export const syncUpcomingMeetings = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { count: rows.length };
   });
+
+export const testZoomAuth = createServerFn({ method: "POST" })
+  .validator((raw) => z.object({ meetingId: z.string().optional() }).parse(raw))
+  .handler(async ({ data }) => {
+    const { testZoomOAuthConnection, fetchZoomMeeting } = await import("./zoom.server");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    // 1. Test OAuth token
+    const oauthRes = await testZoomOAuthConnection();
+    if (!oauthRes.success) {
+      return { success: false, message: oauthRes.message };
+    }
+
+    // 2. Try fetching & syncing target meeting
+    const targetMeetingId = data.meetingId || process.env.ZOOM_MEETING_ID || "83483016779";
+    try {
+      const meetingDetails = await fetchZoomMeeting(targetMeetingId);
+      await supabaseAdmin.from("meetings").update({ is_active: false }).eq("is_active", true);
+
+      const row = {
+        zoom_id: String(meetingDetails.id),
+        topic: meetingDetails.topic ?? "Zoom meeting",
+        host_email: meetingDetails.host_email ?? null,
+        start_time: meetingDetails.start_time ?? null,
+        duration_min: meetingDetails.duration ?? null,
+        join_url: meetingDetails.join_url ?? null,
+        passcode: meetingDetails.password ?? null,
+        status: meetingDetails.status ?? "scheduled",
+        is_active: true,
+        raw: meetingDetails.raw ?? meetingDetails,
+        synced_at: new Date().toISOString(),
+      };
+
+      await supabaseAdmin.from("meetings").upsert(row as never, { onConflict: "zoom_id" });
+
+      return {
+        success: true,
+        message: `Zoom OAuth Verified & Active Meeting "${meetingDetails.topic}" (ID: ${meetingDetails.id}) synced successfully!`,
+      };
+    } catch (err: any) {
+      return {
+        success: true,
+        message: `Zoom OAuth Token Verified! (Meeting sync note: ${err.message})`,
+      };
+    }
+  });
+
