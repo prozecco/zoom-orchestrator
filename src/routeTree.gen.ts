@@ -19,6 +19,7 @@ import { Route as AppChatRouteImport } from './routes/app.chat'
 import { Route as AdminToolsRouteImport } from './routes/admin.tools'
 import { Route as AdminScheduleRouteImport } from './routes/admin.schedule'
 import { Route as AdminRegistrantsRouteImport } from './routes/admin.registrants'
+import { Route as AdminMeetingsRouteImport } from './routes/admin.meetings'
 import { Route as AdminLiveRouteImport } from './routes/admin.live'
 import { Route as AdminDetailsRouteImport } from './routes/admin.details'
 import { Route as AdminAuditRouteImport } from './routes/admin.audit'
@@ -74,6 +75,11 @@ const AdminRegistrantsRoute = AdminRegistrantsRouteImport.update({
   path: '/registrants',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminMeetingsRoute = AdminMeetingsRouteImport.update({
+  id: '/meetings',
+  path: '/meetings',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminLiveRoute = AdminLiveRouteImport.update({
   id: '/live',
   path: '/live',
@@ -103,6 +109,7 @@ export interface FileRoutesByFullPath {
   '/admin/audit': typeof AdminAuditRoute
   '/admin/details': typeof AdminDetailsRoute
   '/admin/live': typeof AdminLiveRoute
+  '/admin/meetings': typeof AdminMeetingsRoute
   '/admin/registrants': typeof AdminRegistrantsRoute
   '/admin/schedule': typeof AdminScheduleRoute
   '/admin/tools': typeof AdminToolsRoute
@@ -117,6 +124,7 @@ export interface FileRoutesByTo {
   '/admin/audit': typeof AdminAuditRoute
   '/admin/details': typeof AdminDetailsRoute
   '/admin/live': typeof AdminLiveRoute
+  '/admin/meetings': typeof AdminMeetingsRoute
   '/admin/registrants': typeof AdminRegistrantsRoute
   '/admin/schedule': typeof AdminScheduleRoute
   '/admin/tools': typeof AdminToolsRoute
@@ -134,6 +142,7 @@ export interface FileRoutesById {
   '/admin/audit': typeof AdminAuditRoute
   '/admin/details': typeof AdminDetailsRoute
   '/admin/live': typeof AdminLiveRoute
+  '/admin/meetings': typeof AdminMeetingsRoute
   '/admin/registrants': typeof AdminRegistrantsRoute
   '/admin/schedule': typeof AdminScheduleRoute
   '/admin/tools': typeof AdminToolsRoute
@@ -152,6 +161,7 @@ export interface FileRouteTypes {
     | '/admin/audit'
     | '/admin/details'
     | '/admin/live'
+    | '/admin/meetings'
     | '/admin/registrants'
     | '/admin/schedule'
     | '/admin/tools'
@@ -166,6 +176,7 @@ export interface FileRouteTypes {
     | '/admin/audit'
     | '/admin/details'
     | '/admin/live'
+    | '/admin/meetings'
     | '/admin/registrants'
     | '/admin/schedule'
     | '/admin/tools'
@@ -182,6 +193,7 @@ export interface FileRouteTypes {
     | '/admin/audit'
     | '/admin/details'
     | '/admin/live'
+    | '/admin/meetings'
     | '/admin/registrants'
     | '/admin/schedule'
     | '/admin/tools'
@@ -271,6 +283,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRegistrantsRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/meetings': {
+      id: '/admin/meetings'
+      path: '/meetings'
+      fullPath: '/admin/meetings'
+      preLoaderRoute: typeof AdminMeetingsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/live': {
       id: '/admin/live'
       path: '/live'
@@ -306,6 +325,7 @@ interface AdminRouteChildren {
   AdminAuditRoute: typeof AdminAuditRoute
   AdminDetailsRoute: typeof AdminDetailsRoute
   AdminLiveRoute: typeof AdminLiveRoute
+  AdminMeetingsRoute: typeof AdminMeetingsRoute
   AdminRegistrantsRoute: typeof AdminRegistrantsRoute
   AdminScheduleRoute: typeof AdminScheduleRoute
   AdminToolsRoute: typeof AdminToolsRoute
@@ -316,6 +336,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminAuditRoute: AdminAuditRoute,
   AdminDetailsRoute: AdminDetailsRoute,
   AdminLiveRoute: AdminLiveRoute,
+  AdminMeetingsRoute: AdminMeetingsRoute,
   AdminRegistrantsRoute: AdminRegistrantsRoute,
   AdminScheduleRoute: AdminScheduleRoute,
   AdminToolsRoute: AdminToolsRoute,
@@ -347,13 +368,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
