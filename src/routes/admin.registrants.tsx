@@ -97,7 +97,7 @@ function RegistrantsPage() {
     source: dbR.telegram_id ? "telegram_miniapp" : "zoom_web",
   }));
 
-  const registrantsList = liveRegistrants.length > 0 ? liveRegistrants : mockRegistrants;
+  const registrantsList = liveRegistrants;
 
   // Modals for Member ID Settings and Attendance Management
   const [memberIdConfigOpen, setMemberIdConfigOpen] = useState(false);

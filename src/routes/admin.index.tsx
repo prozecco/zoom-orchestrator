@@ -24,27 +24,19 @@ function AdminHome() {
   const activeMeeting = activeQuery.data ? {
     id: activeQuery.data.zoom_id,
     topic: activeQuery.data.topic,
-    host: activeQuery.data.host_email ?? mockActiveMeeting.host,
-    startTime: activeQuery.data.start_time ?? mockActiveMeeting.startTime,
-    durationMin: activeQuery.data.duration_min ?? mockActiveMeeting.durationMin,
-    passcode: activeQuery.data.passcode ?? mockActiveMeeting.passcode,
-    attendees: mockActiveMeeting.attendees,
-    capacity: mockActiveMeeting.capacity ?? 100,
-    joinUrl: activeQuery.data.join_url ?? mockActiveMeeting.joinUrl,
-  } : mockActiveMeeting;
+    host: activeQuery.data.host_email ?? "Host",
+    startTime: activeQuery.data.start_time ?? new Date().toISOString(),
+    durationMin: activeQuery.data.duration_min ?? 60,
+    passcode: activeQuery.data.passcode ?? "—",
+    attendees: 0,
+    capacity: activeQuery.data.capacity ?? 100,
+    joinUrl: activeQuery.data.join_url ?? `https://zoom.us/j/${activeQuery.data.zoom_id}`,
+  } : null;
 
   const rawRegistrants = registrantsQuery.data ?? [];
-  const pendingCount = rawRegistrants.length > 0
-    ? rawRegistrants.filter((r) => r.status === "pending").length
-    : mockRegistrants.filter((r) => r.status === "pending").length;
-
-  const totalMeetingsCount = (meetingsQuery.data?.length ?? 0) > 0
-    ? meetingsQuery.data!.length
-    : mockStats.totalMeetings;
-
-  const registrantsThisWeekCount = rawRegistrants.length > 0
-    ? rawRegistrants.length
-    : mockStats.registrantsThisWeek;
+  const pendingCount = rawRegistrants.filter((r) => r.status === "pending").length;
+  const totalMeetingsCount = meetingsQuery.data?.length ?? 0;
+  const registrantsThisWeekCount = rawRegistrants.length;
 
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -52,43 +44,20 @@ function AdminHome() {
     { label: "Total meetings", value: totalMeetingsCount, icon: Video },
     { label: "Pending", value: pendingCount, icon: Calendar },
     { label: "Registrants (week)", value: registrantsThisWeekCount, icon: UserPlus },
-    { label: "Live now", value: activeQuery.data ? 1 : mockStats.liveNow, icon: Radio },
+    { label: "Live now", value: activeQuery.data ? 1 : 0, icon: Radio },
   ];
 
-  // Full merged meetings dataset
-  const dbMeetings = (meetingsQuery.data ?? []).map((m) => ({
+  // Full merged meetings dataset from Database
+  const allMeetings = (meetingsQuery.data ?? []).map((m) => ({
     id: m.zoom_id,
     title: m.topic,
     host: m.host_email ?? "Host",
     startsAt: m.start_time ?? new Date().toISOString(),
     durationMin: m.duration_min ?? 60,
     status: (m.is_active ? "live" : m.status) as "live" | "upcoming" | "ended",
-    attendees: m.is_active ? mockActiveMeeting.attendees : 0,
+    attendees: 0,
     joinUrl: m.join_url ?? `https://zoom.us/j/${m.zoom_id}`,
   }));
-
-  const allMeetings = dbMeetings.length > 0 ? dbMeetings : [
-    {
-      id: activeMeeting.id,
-      title: activeMeeting.topic,
-      host: activeMeeting.host,
-      startsAt: activeMeeting.startTime,
-      durationMin: activeMeeting.durationMin,
-      status: "live" as const,
-      attendees: activeMeeting.attendees,
-      joinUrl: activeMeeting.joinUrl,
-    },
-    ...mockSchedule.map((s) => ({
-      id: s.id,
-      title: s.title,
-      host: s.host,
-      startsAt: s.startsAt,
-      durationMin: s.durationMin,
-      status: "upcoming" as const,
-      attendees: 0,
-      joinUrl: `https://zoom.us/j/${s.id}`,
-    })),
-  ];
 
   const handleCopyJoinUrl = (id: string, url: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -101,32 +70,51 @@ function AdminHome() {
   return (
     <div className="space-y-6">
       {/* 1. Live Status Banner at Top */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 shadow-sm backdrop-blur-md">
-        <div className="flex items-center gap-3">
-          <span className="relative flex h-3.5 w-3.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500"></span>
-          </span>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-sm text-foreground">LIVE NOW: {activeMeeting.topic}</span>
-              <Badge className="bg-emerald-500 text-white hover:bg-emerald-500 text-[10px] px-2 py-0">
-                {activeMeeting.attendees} Attendees
-              </Badge>
-            </div>
-            <div className="text-xs text-muted-foreground mt-0.5 font-mono">
-              Meeting ID: {activeMeeting.id} · Host: {activeMeeting.host}
+      {activeMeeting ? (
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 shadow-sm backdrop-blur-md">
+          <div className="flex items-center gap-3">
+            <span className="relative flex h-3.5 w-3.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500"></span>
+            </span>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-sm text-foreground">LIVE NOW: {activeMeeting.topic}</span>
+                <Badge className="bg-emerald-500 text-white hover:bg-emerald-500 text-[10px] px-2 py-0">
+                  {activeMeeting.attendees} Attendees
+                </Badge>
+              </div>
+              <div className="text-xs text-muted-foreground mt-0.5 font-mono">
+                Meeting ID: {activeMeeting.id} · Host: {activeMeeting.host}
+              </div>
             </div>
           </div>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <Button size="sm" asChild className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white w-full sm:w-auto">
+              <Link to="/admin/live">
+                Open Live Stream <ArrowRight className="ml-1 h-3.5 w-3.5" />
+              </Link>
+            </Button>
+          </div>
         </div>
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <Button size="sm" asChild className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white w-full sm:w-auto">
-            <Link to="/admin/live">
-              Open Live Stream <ArrowRight className="ml-1 h-3.5 w-3.5" />
+      ) : (
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-xl border border-border bg-card p-4 shadow-sm">
+          <div className="flex items-center gap-3">
+            <Radio className="h-5 w-5 text-muted-foreground" />
+            <div>
+              <div className="font-bold text-sm text-foreground">No Live Session Currently Active</div>
+              <div className="text-xs text-muted-foreground mt-0.5 font-mono">
+                Use Tools to sync active sessions directly from Zoom API
+              </div>
+            </div>
+          </div>
+          <Button size="sm" variant="outline" asChild className="text-xs w-full sm:w-auto">
+            <Link to="/admin/tools">
+              Sync Zoom API <ArrowRight className="ml-1 h-3.5 w-3.5" />
             </Link>
           </Button>
         </div>
-      </div>
+      )}
 
       {/* 2. Live Stats Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -154,45 +142,59 @@ function AdminHome() {
             <div>
               <CardTitle className="text-base flex items-center gap-2">
                 Active Meeting
-                <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] px-2 py-0 font-normal">
-                  Broadcasting
-                </Badge>
+                {activeMeeting ? (
+                  <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] px-2 py-0 font-normal">
+                    Broadcasting
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-[10px] px-2 py-0 font-normal text-muted-foreground">
+                    Inactive
+                  </Badge>
+                )}
               </CardTitle>
               <CardDescription className="text-xs">Live session overview & controls</CardDescription>
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={(e) => handleCopyJoinUrl(activeMeeting.id, activeMeeting.joinUrl, e)}
-              className="text-xs text-muted-foreground hover:text-foreground h-8"
-            >
-              {copiedId === activeMeeting.id ? (
-                <>
-                  <Check className="h-3.5 w-3.5 mr-1 text-emerald-400" /> Copied
-                </>
-              ) : (
-                <>
-                  <Copy className="h-3.5 w-3.5 mr-1" /> Copy Join URL
-                </>
-              )}
-            </Button>
+            {activeMeeting && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => handleCopyJoinUrl(activeMeeting.id, activeMeeting.joinUrl, e)}
+                className="text-xs text-muted-foreground hover:text-foreground h-8"
+              >
+                {copiedId === activeMeeting.id ? (
+                  <>
+                    <Check className="h-3.5 w-3.5 mr-1 text-emerald-400" /> Copied
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-3.5 w-3.5 mr-1" /> Copy Join URL
+                  </>
+                )}
+              </Button>
+            )}
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="rounded-lg border border-border/50 bg-black/20 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <div className="text-base font-semibold text-foreground">{activeMeeting.topic}</div>
-                <div className="text-xs text-muted-foreground font-mono mt-0.5">
-                  ID: {activeMeeting.id} · Host: {activeMeeting.host} · Passcode: {activeMeeting.passcode}
+            {activeMeeting ? (
+              <div className="rounded-lg border border-border/50 bg-black/20 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <div className="text-base font-semibold text-foreground">{activeMeeting.topic}</div>
+                  <div className="text-xs text-muted-foreground font-mono mt-0.5">
+                    ID: {activeMeeting.id} · Host: {activeMeeting.host} · Passcode: {activeMeeting.passcode}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 text-xs font-medium">
+                  <div className="flex items-center gap-1 text-emerald-400">
+                    <Users className="h-4 w-4" /> {activeMeeting.attendees}/{activeMeeting.capacity}
+                  </div>
+                  <div className="text-muted-foreground">|</div>
+                  <div>{activeMeeting.durationMin} mins</div>
                 </div>
               </div>
-              <div className="flex items-center gap-3 text-xs font-medium">
-                <div className="flex items-center gap-1 text-emerald-400">
-                  <Users className="h-4 w-4" /> {activeMeeting.attendees}/{activeMeeting.capacity}
-                </div>
-                <div className="text-muted-foreground">|</div>
-                <div>{activeMeeting.durationMin} mins</div>
+            ) : (
+              <div className="rounded-lg border border-dashed border-border/60 p-4 text-center text-xs text-muted-foreground">
+                No active meeting is live in the database right now.
               </div>
-            </div>
+            )}
 
             {/* Deep-links into Live and Users */}
             <div className="flex flex-wrap gap-2">

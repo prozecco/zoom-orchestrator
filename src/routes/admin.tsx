@@ -1,6 +1,7 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { Shield, Home, Calendar, Info, Users, Radio, ScrollText, Wrench, ArrowLeft, MessageSquare } from "lucide-react";
+import { Shield, Home, Users, Radio, ScrollText, Wrench, ArrowLeft, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useTelegram } from "@/hooks/useTelegram";
 
 export const Route = createFileRoute("/admin")({
   ssr: false,
@@ -21,6 +22,9 @@ const tabs: { to: string; label: string; icon: typeof Home; exact?: boolean }[] 
 
 function AdminLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { user } = useTelegram();
+
+  const adminName = user?.username ? `@${user.username}` : user?.first_name ? user.first_name : "Admin";
 
   return (
     <div className="min-h-screen bg-muted/30">
@@ -35,11 +39,11 @@ function AdminLayout() {
             </div>
             <div>
               <div className="text-sm font-semibold">Admin Dashboard</div>
-              <div className="text-xs text-muted-foreground">Elena Ross · Owner</div>
+              <div className="text-xs text-muted-foreground">{adminName} · Owner</div>
             </div>
           </div>
           <span className="hidden rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-600 sm:inline-flex">
-            ● Meeting live
+            ● System Active
           </span>
         </div>
         <nav className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-2 pb-2">
