@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +10,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { RegistrantProfileSheet } from "@/components/admin/RegistrantProfile";
 import { MemberIdConfigDialog } from "@/components/admin/MemberIdConfigDialog";
 import { AttendanceManagementSheet } from "@/components/admin/AttendanceManagementSheet";
-import { registrants, type Registrant } from "@/lib/mock-data";
+import { registrants as mockRegistrants, type Registrant } from "@/lib/mock-data";
+import { listRegistrants } from "@/lib/registrants.functions";
 import { formatBangkokRegistrationTime } from "@/lib/time-formatter";
 import { Search, Hash, Clock, Smartphone, Globe, Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -22,8 +23,9 @@ export const Route = createFileRoute("/admin/registrants")({
   component: RegistrantsPage,
 });
 
-const statusColor: Record<Registrant["status"], string> = {
+const statusColor: Record<string, string> = {
   pending: "bg-[var(--status-pending)] text-yellow-950 border-none",
+  on_hold: "bg-amber-500 text-amber-950 border-none",
   approved: "bg-[var(--status-approved)] text-green-950 border-none",
   attended: "bg-[var(--status-approved)] text-green-950 border-none",
   rejected: "bg-[var(--status-denied)] text-white border-none",
@@ -80,11 +82,28 @@ function RegistrantsPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectedRegistrant, setSelectedRegistrant] = useState<Registrant | null>(null);
 
+  const registrantsQuery = useQuery({ queryKey: ["registrants"], queryFn: () => listRegistrants(), refetchInterval: 5000 });
+
+  const liveRegistrants: Registrant[] = (registrantsQuery.data ?? []).map((dbR) => ({
+    id: dbR.id,
+    name: dbR.name,
+    telegramUser: dbR.telegram_user ? `@${dbR.telegram_user.replace(/^@/, "")}` : "@unknown",
+    email: dbR.email,
+    phone: dbR.phone ?? "",
+    status: (dbR.status as Registrant["status"]) || "pending",
+    countryCode: "TH",
+    countryFlag: "🇹🇭",
+    registeredAt: dbR.registered_at,
+    source: dbR.telegram_id ? "telegram_miniapp" : "zoom_web",
+  }));
+
+  const registrantsList = liveRegistrants.length > 0 ? liveRegistrants : mockRegistrants;
+
   // Modals for Member ID Settings and Attendance Management
   const [memberIdConfigOpen, setMemberIdConfigOpen] = useState(false);
   const [attendanceSheetOpen, setAttendanceSheetOpen] = useState(false);
 
-  const filtered = registrants.filter((r) => {
+  const filtered = registrantsList.filter((r) => {
     const matchesSearch = [r.name, r.telegramUser, r.email, r.countryCode].some((f) =>
       f.toLowerCase().includes(q.toLowerCase())
     );
@@ -108,10 +127,10 @@ function RegistrantsPage() {
   };
 
   const counts = {
-    total: registrants.length,
-    pending: registrants.filter((r) => r.status === "pending").length,
-    approved: registrants.filter((r) => r.status === "approved" || r.status === "attended").length,
-    denied: registrants.filter((r) => r.status === "denied" || r.status === "rejected" || r.status === "blacklisted").length,
+    total: registrantsList.length,
+    pending: registrantsList.filter((r) => r.status === "pending").length,
+    approved: registrantsList.filter((r) => r.status === "approved" || r.status === "attended").length,
+    denied: registrantsList.filter((r) => r.status === "denied" || r.status === "rejected" || r.status === "blacklisted").length,
   };
 
   const handleQuickApprove = (name: string) => {

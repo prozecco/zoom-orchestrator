@@ -1,9 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { activeMeeting, registrants, schedule, stats } from "@/lib/mock-data";
+import { activeMeeting as mockActiveMeeting, registrants as mockRegistrants, schedule as mockSchedule, stats as mockStats } from "@/lib/mock-data";
+import { getActiveMeeting, listMeetings } from "@/lib/meetings.functions";
+import { listRegistrants } from "@/lib/registrants.functions";
 import { Calendar, Radio, UserPlus, Video, Copy, ExternalLink, Users, ArrowRight, Check } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -14,18 +17,57 @@ export const Route = createFileRoute("/admin/")({
 });
 
 function AdminHome() {
-  const pendingCount = registrants.filter((r) => r.status === "pending").length;
+  const activeQuery = useQuery({ queryKey: ["activeMeeting"], queryFn: () => getActiveMeeting(), refetchInterval: 5000 });
+  const meetingsQuery = useQuery({ queryKey: ["meetings"], queryFn: () => listMeetings(), refetchInterval: 5000 });
+  const registrantsQuery = useQuery({ queryKey: ["registrants"], queryFn: () => listRegistrants(), refetchInterval: 5000 });
+
+  const activeMeeting = activeQuery.data ? {
+    id: activeQuery.data.zoom_id,
+    topic: activeQuery.data.topic,
+    host: activeQuery.data.host_email ?? mockActiveMeeting.host,
+    startTime: activeQuery.data.start_time ?? mockActiveMeeting.startTime,
+    durationMin: activeQuery.data.duration_min ?? mockActiveMeeting.durationMin,
+    passcode: activeQuery.data.passcode ?? mockActiveMeeting.passcode,
+    attendees: mockActiveMeeting.attendees,
+    capacity: mockActiveMeeting.capacity ?? 100,
+    joinUrl: activeQuery.data.join_url ?? mockActiveMeeting.joinUrl,
+  } : mockActiveMeeting;
+
+  const rawRegistrants = registrantsQuery.data ?? [];
+  const pendingCount = rawRegistrants.length > 0
+    ? rawRegistrants.filter((r) => r.status === "pending").length
+    : mockRegistrants.filter((r) => r.status === "pending").length;
+
+  const totalMeetingsCount = (meetingsQuery.data?.length ?? 0) > 0
+    ? meetingsQuery.data!.length
+    : mockStats.totalMeetings;
+
+  const registrantsThisWeekCount = rawRegistrants.length > 0
+    ? rawRegistrants.length
+    : mockStats.registrantsThisWeek;
+
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const cards = [
-    { label: "Total meetings", value: stats.totalMeetings, icon: Video },
+    { label: "Total meetings", value: totalMeetingsCount, icon: Video },
     { label: "Pending", value: pendingCount, icon: Calendar },
-    { label: "Registrants (week)", value: stats.registrantsThisWeek, icon: UserPlus },
-    { label: "Live now", value: stats.liveNow, icon: Radio },
+    { label: "Registrants (week)", value: registrantsThisWeekCount, icon: UserPlus },
+    { label: "Live now", value: activeQuery.data ? 1 : mockStats.liveNow, icon: Radio },
   ];
 
-  // Full merged meetings dataset (active + scheduled + past)
-  const allMeetings = [
+  // Full merged meetings dataset
+  const dbMeetings = (meetingsQuery.data ?? []).map((m) => ({
+    id: m.zoom_id,
+    title: m.topic,
+    host: m.host_email ?? "Host",
+    startsAt: m.start_time ?? new Date().toISOString(),
+    durationMin: m.duration_min ?? 60,
+    status: (m.is_active ? "live" : m.status) as "live" | "upcoming" | "ended",
+    attendees: m.is_active ? mockActiveMeeting.attendees : 0,
+    joinUrl: m.join_url ?? `https://zoom.us/j/${m.zoom_id}`,
+  }));
+
+  const allMeetings = dbMeetings.length > 0 ? dbMeetings : [
     {
       id: activeMeeting.id,
       title: activeMeeting.topic,
@@ -36,7 +78,7 @@ function AdminHome() {
       attendees: activeMeeting.attendees,
       joinUrl: activeMeeting.joinUrl,
     },
-    ...schedule.map((s) => ({
+    ...mockSchedule.map((s) => ({
       id: s.id,
       title: s.title,
       host: s.host,
@@ -46,16 +88,6 @@ function AdminHome() {
       attendees: 0,
       joinUrl: `https://zoom.us/j/${s.id}`,
     })),
-    {
-      id: "99182374612",
-      title: "Q2 Product Roadmap & Review",
-      host: "Elena Ross",
-      startsAt: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
-      durationMin: 90,
-      status: "ended" as const,
-      attendees: 64,
-      joinUrl: "https://zoom.us/j/99182374612",
-    },
   ];
 
   const handleCopyJoinUrl = (id: string, url: string, e: React.MouseEvent) => {
