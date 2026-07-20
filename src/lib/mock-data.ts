@@ -1,11 +1,21 @@
+export type NameAlias = {
+  oldName: string;
+  newName: string;
+  changedAt: string;
+};
+
 export type Registrant = {
   id: string;
   name: string;
   telegramUser: string;
   email: string;
   phone: string;
-  status: "pending" | "approved" | "rejected" | "attended";
+  countryCode: string;
+  countryFlag: string;
+  status: "pending" | "approved" | "rejected" | "attended" | "denied" | "blacklisted" | "cancelled";
+  source: "telegram_miniapp" | "zoom_web";
   registeredAt: string;
+  aliasHistory?: NameAlias[];
 };
 
 export type ScheduleItem = {
@@ -55,12 +65,109 @@ export const schedule: ScheduleItem[] = [
 ];
 
 export const registrants: Registrant[] = [
-  { id: "r1", name: "Alice Johnson", telegramUser: "@alicej", email: "alice@example.com", phone: "+1 555-0101", status: "approved", registeredAt: "2026-07-13T10:12:00Z" },
-  { id: "r2", name: "Bruno Silva", telegramUser: "@brunos", email: "bruno@example.com", phone: "+55 11 91234-5678", status: "attended", registeredAt: "2026-07-13T11:04:00Z" },
-  { id: "r3", name: "Chika Adeyemi", telegramUser: "@chikaa", email: "chika@example.com", phone: "+234 802 111 2233", status: "pending", registeredAt: "2026-07-14T08:22:00Z" },
-  { id: "r4", name: "Dmitri Volkov", telegramUser: "@dmitriv", email: "dmitri@example.com", phone: "+7 999 555 4433", status: "pending", registeredAt: "2026-07-14T09:01:00Z" },
-  { id: "r5", name: "Emiko Tanaka", telegramUser: "@emikot", email: "emiko@example.com", phone: "+81 90 1234 5678", status: "rejected", registeredAt: "2026-07-13T18:45:00Z" },
-  { id: "r6", name: "Farouk Mensah", telegramUser: "@faroukm", email: "farouk@example.com", phone: "+233 24 555 7788", status: "approved", registeredAt: "2026-07-14T07:30:00Z" },
+  { 
+    id: "r1", 
+    name: "Alice Johnson", 
+    telegramUser: "@alicej", 
+    email: "alice@example.com", 
+    phone: "+1 555-0101", 
+    countryCode: "US", 
+    countryFlag: "🇺🇸", 
+    status: "approved", 
+    source: "telegram_miniapp",
+    registeredAt: new Date(Date.now() - 45 * 60 * 1000).toISOString(), // 45m ago
+    aliasHistory: [
+      { oldName: "Alice J.", newName: "Alice Johnson", changedAt: "2026-07-13T10:15:00Z" }
+    ]
+  },
+  { 
+    id: "r2", 
+    name: "Bruno Silva", 
+    telegramUser: "@brunos", 
+    email: "bruno@example.com", 
+    phone: "+55 11 91234-5678", 
+    countryCode: "BR", 
+    countryFlag: "🇧🇷", 
+    status: "attended", 
+    source: "zoom_web",
+    registeredAt: new Date(Date.now() - 3 * 3600 * 1000).toISOString(), // 3h ago
+  },
+  { 
+    id: "r3", 
+    name: "Chika Adeyemi", 
+    telegramUser: "@chikaa", 
+    email: "chika@example.com", 
+    phone: "+234 802 111 2233", 
+    countryCode: "NG", 
+    countryFlag: "🇳🇬", 
+    status: "pending", 
+    source: "telegram_miniapp",
+    registeredAt: new Date(Date.now() - 5 * 3600 * 1000).toISOString(), // 5h ago
+  },
+  { 
+    id: "r4", 
+    name: "Dmitri Volkov", 
+    telegramUser: "@dmitriv", 
+    email: "dmitri@example.com", 
+    phone: "+7 999 555 4433", 
+    countryCode: "RU", 
+    countryFlag: "🇷🇺", 
+    status: "pending", 
+    source: "zoom_web",
+    registeredAt: new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString(), // 2d ago
+    aliasHistory: [
+      { oldName: "Dmitri V.", newName: "D. Volkov", changedAt: "2026-07-14T09:05:00Z" },
+      { oldName: "D. Volkov", newName: "Dmitri Volkov", changedAt: "2026-07-14T09:10:00Z" }
+    ]
+  },
+  { 
+    id: "r5", 
+    name: "Emiko Tanaka", 
+    telegramUser: "@emikot", 
+    email: "emiko@example.com", 
+    phone: "+81 90 1234 5678", 
+    countryCode: "JP", 
+    countryFlag: "🇯🇵", 
+    status: "denied", 
+    source: "zoom_web",
+    registeredAt: new Date(Date.now() - 20 * 24 * 3600 * 1000).toISOString(), // 20d ago (>15d)
+  },
+  { 
+    id: "r6", 
+    name: "Farouk Mensah", 
+    telegramUser: "@faroukm", 
+    email: "farouk@example.com", 
+    phone: "+233 24 555 7788", 
+    countryCode: "GH", 
+    countryFlag: "🇬🇭", 
+    status: "approved", 
+    source: "telegram_miniapp",
+    registeredAt: new Date(Date.now() - 1 * 3600 * 1000).toISOString(), // 1h ago
+  },
+  { 
+    id: "r7", 
+    name: "Somsak Jaidee", 
+    telegramUser: "@somsak_th", 
+    email: "somsak@example.co.th", 
+    phone: "+66 81 234 5678", 
+    countryCode: "TH", 
+    countryFlag: "🇹🇭", 
+    status: "pending", 
+    source: "telegram_miniapp",
+    registeredAt: new Date(Date.now() - 15 * 60 * 1000).toISOString(), // 15m ago
+  },
+  { 
+    id: "r8", 
+    name: "Chao Joshua", 
+    telegramUser: "@aiwenzheng", 
+    email: "aiwenzheng740@gmail.com", 
+    phone: "+86 138 0000 0000", 
+    countryCode: "CN", 
+    countryFlag: "🇨🇳", 
+    status: "blacklisted", 
+    source: "zoom_web",
+    registeredAt: new Date(Date.now() - 25 * 24 * 3600 * 1000).toISOString(), // 25d ago (>15d)
+  },
 ];
 
 export const auditLog: AuditEntry[] = [

@@ -15,12 +15,14 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AppStatusRouteImport } from './routes/app.status'
+import { Route as AppMessagesRouteImport } from './routes/app.messages'
 import { Route as AppChatRouteImport } from './routes/app.chat'
 import { Route as AdminToolsRouteImport } from './routes/admin.tools'
 import { Route as AdminScheduleRouteImport } from './routes/admin.schedule'
 import { Route as AdminRegistrantsRouteImport } from './routes/admin.registrants'
 import { Route as AdminLiveRouteImport } from './routes/admin.live'
 import { Route as AdminDetailsRouteImport } from './routes/admin.details'
+import { Route as AdminChatRouteImport } from './routes/admin.chat'
 import { Route as AdminAuditRouteImport } from './routes/admin.audit'
 
 const AppRoute = AppRouteImport.update({
@@ -53,6 +55,11 @@ const AppStatusRoute = AppStatusRouteImport.update({
   path: '/status',
   getParentRoute: () => AppRoute,
 } as any)
+const AppMessagesRoute = AppMessagesRouteImport.update({
+  id: '/messages',
+  path: '/messages',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppChatRoute = AppChatRouteImport.update({
   id: '/chat',
   path: '/chat',
@@ -83,6 +90,11 @@ const AdminDetailsRoute = AdminDetailsRouteImport.update({
   path: '/details',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminChatRoute = AdminChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminAuditRoute = AdminAuditRouteImport.update({
   id: '/audit',
   path: '/audit',
@@ -94,12 +106,14 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRouteWithChildren
   '/app': typeof AppRouteWithChildren
   '/admin/audit': typeof AdminAuditRoute
+  '/admin/chat': typeof AdminChatRoute
   '/admin/details': typeof AdminDetailsRoute
   '/admin/live': typeof AdminLiveRoute
   '/admin/registrants': typeof AdminRegistrantsRoute
   '/admin/schedule': typeof AdminScheduleRoute
   '/admin/tools': typeof AdminToolsRoute
   '/app/chat': typeof AppChatRoute
+  '/app/messages': typeof AppMessagesRoute
   '/app/status': typeof AppStatusRoute
   '/admin/': typeof AdminIndexRoute
   '/app/': typeof AppIndexRoute
@@ -107,12 +121,14 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin/audit': typeof AdminAuditRoute
+  '/admin/chat': typeof AdminChatRoute
   '/admin/details': typeof AdminDetailsRoute
   '/admin/live': typeof AdminLiveRoute
   '/admin/registrants': typeof AdminRegistrantsRoute
   '/admin/schedule': typeof AdminScheduleRoute
   '/admin/tools': typeof AdminToolsRoute
   '/app/chat': typeof AppChatRoute
+  '/app/messages': typeof AppMessagesRoute
   '/app/status': typeof AppStatusRoute
   '/admin': typeof AdminIndexRoute
   '/app': typeof AppIndexRoute
@@ -123,12 +139,14 @@ export interface FileRoutesById {
   '/admin': typeof AdminRouteWithChildren
   '/app': typeof AppRouteWithChildren
   '/admin/audit': typeof AdminAuditRoute
+  '/admin/chat': typeof AdminChatRoute
   '/admin/details': typeof AdminDetailsRoute
   '/admin/live': typeof AdminLiveRoute
   '/admin/registrants': typeof AdminRegistrantsRoute
   '/admin/schedule': typeof AdminScheduleRoute
   '/admin/tools': typeof AdminToolsRoute
   '/app/chat': typeof AppChatRoute
+  '/app/messages': typeof AppMessagesRoute
   '/app/status': typeof AppStatusRoute
   '/admin/': typeof AdminIndexRoute
   '/app/': typeof AppIndexRoute
@@ -140,12 +158,14 @@ export interface FileRouteTypes {
     | '/admin'
     | '/app'
     | '/admin/audit'
+    | '/admin/chat'
     | '/admin/details'
     | '/admin/live'
     | '/admin/registrants'
     | '/admin/schedule'
     | '/admin/tools'
     | '/app/chat'
+    | '/app/messages'
     | '/app/status'
     | '/admin/'
     | '/app/'
@@ -153,12 +173,14 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/admin/audit'
+    | '/admin/chat'
     | '/admin/details'
     | '/admin/live'
     | '/admin/registrants'
     | '/admin/schedule'
     | '/admin/tools'
     | '/app/chat'
+    | '/app/messages'
     | '/app/status'
     | '/admin'
     | '/app'
@@ -168,12 +190,14 @@ export interface FileRouteTypes {
     | '/admin'
     | '/app'
     | '/admin/audit'
+    | '/admin/chat'
     | '/admin/details'
     | '/admin/live'
     | '/admin/registrants'
     | '/admin/schedule'
     | '/admin/tools'
     | '/app/chat'
+    | '/app/messages'
     | '/app/status'
     | '/admin/'
     | '/app/'
@@ -229,6 +253,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppStatusRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/messages': {
+      id: '/app/messages'
+      path: '/messages'
+      fullPath: '/app/messages'
+      preLoaderRoute: typeof AppMessagesRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/chat': {
       id: '/app/chat'
       path: '/chat'
@@ -271,6 +302,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminDetailsRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/chat': {
+      id: '/admin/chat'
+      path: '/chat'
+      fullPath: '/admin/chat'
+      preLoaderRoute: typeof AdminChatRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/audit': {
       id: '/admin/audit'
       path: '/audit'
@@ -283,6 +321,7 @@ declare module '@tanstack/react-router' {
 
 interface AdminRouteChildren {
   AdminAuditRoute: typeof AdminAuditRoute
+  AdminChatRoute: typeof AdminChatRoute
   AdminDetailsRoute: typeof AdminDetailsRoute
   AdminLiveRoute: typeof AdminLiveRoute
   AdminRegistrantsRoute: typeof AdminRegistrantsRoute
@@ -293,6 +332,7 @@ interface AdminRouteChildren {
 
 const AdminRouteChildren: AdminRouteChildren = {
   AdminAuditRoute: AdminAuditRoute,
+  AdminChatRoute: AdminChatRoute,
   AdminDetailsRoute: AdminDetailsRoute,
   AdminLiveRoute: AdminLiveRoute,
   AdminRegistrantsRoute: AdminRegistrantsRoute,
@@ -305,12 +345,14 @@ const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 
 interface AppRouteChildren {
   AppChatRoute: typeof AppChatRoute
+  AppMessagesRoute: typeof AppMessagesRoute
   AppStatusRoute: typeof AppStatusRoute
   AppIndexRoute: typeof AppIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppChatRoute: AppChatRoute,
+  AppMessagesRoute: AppMessagesRoute,
   AppStatusRoute: AppStatusRoute,
   AppIndexRoute: AppIndexRoute,
 }
@@ -325,3 +367,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

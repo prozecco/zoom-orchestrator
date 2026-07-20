@@ -1,16 +1,21 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { activeMeeting, registrants, schedule, stats } from "@/lib/mock-data";
-import { Calendar, Radio, UserPlus, Video } from "lucide-react";
+import { Calendar, Radio, UserPlus, Video, Copy, ExternalLink, Users, ArrowRight, Check } from "lucide-react";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/admin/")({
   component: AdminHome,
 });
 
 function AdminHome() {
-  const pending = registrants.filter((r) => r.status === "pending").length;
+  const pendingCount = registrants.filter((r) => r.status === "pending").length;
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
   const cards = [
     { label: "Total meetings", value: stats.totalMeetings, icon: Video },
     { label: "Upcoming", value: stats.upcomingMeetings, icon: Calendar },
@@ -18,8 +23,79 @@ function AdminHome() {
     { label: "Live now", value: stats.liveNow, icon: Radio },
   ];
 
+  // Full merged meetings dataset (active + scheduled + past)
+  const allMeetings = [
+    {
+      id: activeMeeting.id,
+      title: activeMeeting.topic,
+      host: activeMeeting.host,
+      startsAt: activeMeeting.startTime,
+      durationMin: activeMeeting.durationMin,
+      status: "live" as const,
+      attendees: activeMeeting.attendees,
+      joinUrl: activeMeeting.joinUrl,
+    },
+    ...schedule.map((s) => ({
+      id: s.id,
+      title: s.title,
+      host: s.host,
+      startsAt: s.startsAt,
+      durationMin: s.durationMin,
+      status: "upcoming" as const,
+      attendees: 0,
+      joinUrl: `https://zoom.us/j/${s.id}`,
+    })),
+    {
+      id: "99182374612",
+      title: "Q2 Product Roadmap & Review",
+      host: "Elena Ross",
+      startsAt: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
+      durationMin: 90,
+      status: "ended" as const,
+      attendees: 64,
+      joinUrl: "https://zoom.us/j/99182374612",
+    },
+  ];
+
+  const handleCopyJoinUrl = (id: string, url: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(url);
+    setCopiedId(id);
+    toast.success("Copied Join URL to clipboard!");
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
   return (
     <div className="space-y-6">
+      {/* 1. Live Status Banner at Top */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 shadow-sm backdrop-blur-md">
+        <div className="flex items-center gap-3">
+          <span className="relative flex h-3.5 w-3.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500"></span>
+          </span>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-sm text-foreground">LIVE NOW: {activeMeeting.topic}</span>
+              <Badge className="bg-emerald-500 text-white hover:bg-emerald-500 text-[10px] px-2 py-0">
+                {activeMeeting.attendees} Attendees
+              </Badge>
+            </div>
+            <div className="text-xs text-muted-foreground mt-0.5 font-mono">
+              Meeting ID: {activeMeeting.id} · Host: {activeMeeting.host}
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <Button size="sm" asChild className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white w-full sm:w-auto">
+            <Link to="/admin/live">
+              Open Live Stream <ArrowRight className="ml-1 h-3.5 w-3.5" />
+            </Link>
+          </Button>
+        </div>
+      </div>
+
+      {/* 2. Live Stats Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map((c) => {
           const Icon = c.icon;
@@ -37,75 +113,184 @@ function AdminHome() {
         })}
       </div>
 
+      {/* 3. Action Needed & Compact Active Meeting Card */}
       <div className="grid gap-4 lg:grid-cols-3">
+        {/* Compact Active Meeting Card */}
         <Card className="lg:col-span-2">
-          <CardHeader className="flex flex-row items-start justify-between space-y-0">
+          <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
             <div>
-              <CardTitle>Active meeting</CardTitle>
-              <CardDescription>Currently broadcasting to attendees</CardDescription>
+              <CardTitle className="text-base flex items-center gap-2">
+                Active Meeting
+                <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] px-2 py-0 font-normal">
+                  Broadcasting
+                </Badge>
+              </CardTitle>
+              <CardDescription className="text-xs">Live session overview & controls</CardDescription>
             </div>
-            <Badge className="bg-emerald-500 hover:bg-emerald-500">Live</Badge>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => handleCopyJoinUrl(activeMeeting.id, activeMeeting.joinUrl, e)}
+              className="text-xs text-muted-foreground hover:text-foreground h-8"
+            >
+              {copiedId === activeMeeting.id ? (
+                <>
+                  <Check className="h-3.5 w-3.5 mr-1 text-emerald-400" /> Copied
+                </>
+              ) : (
+                <>
+                  <Copy className="h-3.5 w-3.5 mr-1" /> Copy Join URL
+                </>
+              )}
+            </Button>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div>
-              <div className="text-lg font-semibold">{activeMeeting.topic}</div>
-              <div className="text-sm text-muted-foreground">
-                Meeting ID {activeMeeting.id} · Host {activeMeeting.host}
+            <div className="rounded-lg border border-border/50 bg-black/20 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <div className="text-base font-semibold text-foreground">{activeMeeting.topic}</div>
+                <div className="text-xs text-muted-foreground font-mono mt-0.5">
+                  ID: {activeMeeting.id} · Host: {activeMeeting.host} · Passcode: {activeMeeting.passcode}
+                </div>
+              </div>
+              <div className="flex items-center gap-3 text-xs font-medium">
+                <div className="flex items-center gap-1 text-emerald-400">
+                  <Users className="h-4 w-4" /> {activeMeeting.attendees}/{activeMeeting.capacity}
+                </div>
+                <div className="text-muted-foreground">|</div>
+                <div>{activeMeeting.durationMin} mins</div>
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-3 text-sm">
-              <div className="rounded-md border p-3">
-                <div className="text-xs text-muted-foreground">Attendees</div>
-                <div className="font-semibold">{activeMeeting.attendees} / {activeMeeting.capacity}</div>
-              </div>
-              <div className="rounded-md border p-3">
-                <div className="text-xs text-muted-foreground">Duration</div>
-                <div className="font-semibold">{activeMeeting.durationMin} min</div>
-              </div>
-              <div className="rounded-md border p-3">
-                <div className="text-xs text-muted-foreground">Passcode</div>
-                <div className="font-semibold">{activeMeeting.passcode}</div>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Button asChild><Link to="/admin/live">Open live view</Link></Button>
-              <Button variant="outline" asChild><Link to="/admin/registrants">Review registrants</Link></Button>
+
+            {/* Deep-links into Live and Users */}
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" asChild className="text-xs">
+                <Link to="/admin/live">
+                  <Radio className="h-3.5 w-3.5 mr-1.5" /> Open Live Control
+                </Link>
+              </Button>
+              <Button size="sm" variant="outline" asChild className="text-xs border-border/50">
+                <Link to="/admin/registrants">
+                  <Users className="h-3.5 w-3.5 mr-1.5" /> Review Users ({pendingCount} pending)
+                </Link>
+              </Button>
             </div>
           </CardContent>
         </Card>
 
+        {/* Action Needed Card */}
         <Card>
-          <CardHeader>
-            <CardTitle>Action needed</CardTitle>
-            <CardDescription>Registrants awaiting decision</CardDescription>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Action Needed</CardTitle>
+            <CardDescription className="text-xs">Registrants awaiting decision</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="text-4xl font-semibold">{pending}</div>
-            <p className="mt-1 text-sm text-muted-foreground">pending approval</p>
-            <Button className="mt-4 w-full" variant="secondary" asChild>
-              <Link to="/admin/registrants">Review now</Link>
+          <CardContent className="space-y-4">
+            <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-4 text-center">
+              <div className="text-4xl font-bold text-yellow-500">{pendingCount}</div>
+              <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-yellow-400">
+                Pending Approvals
+              </p>
+            </div>
+            <Button className="w-full text-xs" variant="secondary" asChild>
+              <Link to="/admin/registrants">
+                Review Registrants Now <ArrowRight className="ml-1 h-3.5 w-3.5" />
+              </Link>
             </Button>
           </CardContent>
         </Card>
       </div>
 
+      {/* 4. Clickable Meetings Table (Merged Schedule & Details) */}
       <Card>
-        <CardHeader>
-          <CardTitle>Upcoming schedule</CardTitle>
-          <CardDescription>Next scheduled meetings</CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-border/50">
+          <div>
+            <CardTitle className="text-base">Meetings Management</CardTitle>
+            <CardDescription className="text-xs">
+              All active, scheduled, and past meetings with one-click Join URL copy
+            </CardDescription>
+          </div>
+          <Badge variant="outline" className="text-xs font-mono">
+            {allMeetings.length} Total Meetings
+          </Badge>
         </CardHeader>
-        <CardContent className="space-y-2">
-          {schedule.slice(0, 3).map((m) => (
-            <div key={m.id} className="flex items-center justify-between rounded-md border p-3">
-              <div>
-                <div className="font-medium">{m.title}</div>
-                <div className="text-xs text-muted-foreground">
-                  {new Date(m.startsAt).toLocaleString()} · {m.host}
-                </div>
-              </div>
-              <Badge variant="outline">{m.durationMin} min</Badge>
-            </div>
-          ))}
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-muted/30 uppercase text-muted-foreground border-b border-border/50">
+                <tr>
+                  <th className="py-3 px-4 font-semibold">Meeting Topic</th>
+                  <th className="py-3 px-4 font-semibold">Meeting ID</th>
+                  <th className="py-3 px-4 font-semibold">Host</th>
+                  <th className="py-3 px-4 font-semibold">Start Time</th>
+                  <th className="py-3 px-4 font-semibold">Duration</th>
+                  <th className="py-3 px-4 font-semibold">Status</th>
+                  <th className="py-3 px-4 font-semibold text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/50">
+                {allMeetings.map((m) => (
+                  <tr
+                    key={m.id}
+                    className="hover:bg-muted/20 transition-colors cursor-pointer"
+                  >
+                    <td className="py-3.5 px-4 font-medium text-foreground">
+                      <div className="flex items-center gap-2">
+                        <span>{m.title}</span>
+                      </div>
+                    </td>
+                    <td className="py-3.5 px-4 font-mono text-muted-foreground">{m.id}</td>
+                    <td className="py-3.5 px-4 text-muted-foreground">{m.host}</td>
+                    <td className="py-3.5 px-4 text-muted-foreground">
+                      {new Date(m.startsAt).toLocaleString()}
+                    </td>
+                    <td className="py-3.5 px-4 text-muted-foreground">{m.durationMin} min</td>
+                    <td className="py-3.5 px-4">
+                      {m.status === "live" ? (
+                        <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px]">
+                          ● LIVE
+                        </Badge>
+                      ) : m.status === "upcoming" ? (
+                        <Badge variant="outline" className="text-[10px] border-blue-500/30 text-blue-400 bg-blue-500/10">
+                          UPCOMING
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                          ENDED
+                        </Badge>
+                      )}
+                    </td>
+                    <td className="py-3.5 px-4 text-right">
+                      <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => handleCopyJoinUrl(m.id, m.joinUrl, e)}
+                          className="h-7 text-[11px] px-2 text-muted-foreground hover:text-foreground border border-border/40"
+                          title="Copy Join URL"
+                        >
+                          {copiedId === m.id ? (
+                            <>
+                              <Check className="h-3 w-3 mr-1 text-emerald-400" /> Copied
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="h-3 w-3 mr-1" /> Copy Link
+                            </>
+                          )}
+                        </Button>
+                        {m.status === "live" && (
+                          <Button size="sm" asChild className="h-7 text-[11px] px-2 bg-emerald-600 hover:bg-emerald-700 text-white">
+                            <Link to="/admin/live">
+                              Live <ExternalLink className="h-3 w-3 ml-1" />
+                            </Link>
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </CardContent>
       </Card>
     </div>

@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { Shield, Home, Calendar, Info, Users, Radio, ScrollText, Wrench, ArrowLeft } from "lucide-react";
+import { Shield, Home, Calendar, Info, Users, Radio, ScrollText, Wrench, ArrowLeft, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/admin")({
@@ -11,9 +11,8 @@ export const Route = createFileRoute("/admin")({
 
 const tabs: { to: string; label: string; icon: typeof Home; exact?: boolean }[] = [
   { to: "/admin", label: "Home", icon: Home, exact: true },
-  { to: "/admin/schedule", label: "Schedule", icon: Calendar },
-  { to: "/admin/details", label: "Details", icon: Info },
   { to: "/admin/registrants", label: "Users", icon: Users },
+  { to: "/admin/chat", label: "Live Chat", icon: MessageSquare },
   { to: "/admin/live", label: "Live", icon: Radio },
   { to: "/admin/audit", label: "Audit", icon: ScrollText },
   { to: "/admin/tools", label: "Tools", icon: Wrench },
