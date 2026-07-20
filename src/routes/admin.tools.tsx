@@ -61,7 +61,15 @@ function ToolsPage() {
   });
 
   const testZoom = useMutation({
-    mutationFn: () => testZoomAuth({ data: { meetingId: zoomDefaultMeetingId } }),
+    mutationFn: () =>
+      testZoomAuth({
+        data: {
+          meetingId: zoomDefaultMeetingId,
+          accountId: zoomAccountId,
+          clientId: zoomClientId,
+          clientSecret: zoomClientSecret,
+        },
+      }),
     onSuccess: (res) => {
       if (res.success) {
         toast.success(res.message);
