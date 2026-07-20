@@ -17,10 +17,9 @@ import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AppStatusRouteImport } from './routes/app.status'
 import { Route as AppChatRouteImport } from './routes/app.chat'
 import { Route as AdminToolsRouteImport } from './routes/admin.tools'
-import { Route as AdminScheduleRouteImport } from './routes/admin.schedule'
 import { Route as AdminRegistrantsRouteImport } from './routes/admin.registrants'
+import { Route as AdminMeetingsRouteImport } from './routes/admin.meetings'
 import { Route as AdminLiveRouteImport } from './routes/admin.live'
-import { Route as AdminDetailsRouteImport } from './routes/admin.details'
 import { Route as AdminAuditRouteImport } from './routes/admin.audit'
 import { Route as ApiPublicTelegramWebhookRouteImport } from './routes/api/public/telegram/webhook'
 
@@ -64,24 +63,19 @@ const AdminToolsRoute = AdminToolsRouteImport.update({
   path: '/tools',
   getParentRoute: () => AdminRoute,
 } as any)
-const AdminScheduleRoute = AdminScheduleRouteImport.update({
-  id: '/schedule',
-  path: '/schedule',
-  getParentRoute: () => AdminRoute,
-} as any)
 const AdminRegistrantsRoute = AdminRegistrantsRouteImport.update({
   id: '/registrants',
   path: '/registrants',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminMeetingsRoute = AdminMeetingsRouteImport.update({
+  id: '/meetings',
+  path: '/meetings',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminLiveRoute = AdminLiveRouteImport.update({
   id: '/live',
   path: '/live',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminDetailsRoute = AdminDetailsRouteImport.update({
-  id: '/details',
-  path: '/details',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminAuditRoute = AdminAuditRouteImport.update({
@@ -101,10 +95,9 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRouteWithChildren
   '/app': typeof AppRouteWithChildren
   '/admin/audit': typeof AdminAuditRoute
-  '/admin/details': typeof AdminDetailsRoute
   '/admin/live': typeof AdminLiveRoute
+  '/admin/meetings': typeof AdminMeetingsRoute
   '/admin/registrants': typeof AdminRegistrantsRoute
-  '/admin/schedule': typeof AdminScheduleRoute
   '/admin/tools': typeof AdminToolsRoute
   '/app/chat': typeof AppChatRoute
   '/app/status': typeof AppStatusRoute
@@ -115,10 +108,9 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin/audit': typeof AdminAuditRoute
-  '/admin/details': typeof AdminDetailsRoute
   '/admin/live': typeof AdminLiveRoute
+  '/admin/meetings': typeof AdminMeetingsRoute
   '/admin/registrants': typeof AdminRegistrantsRoute
-  '/admin/schedule': typeof AdminScheduleRoute
   '/admin/tools': typeof AdminToolsRoute
   '/app/chat': typeof AppChatRoute
   '/app/status': typeof AppStatusRoute
@@ -132,10 +124,9 @@ export interface FileRoutesById {
   '/admin': typeof AdminRouteWithChildren
   '/app': typeof AppRouteWithChildren
   '/admin/audit': typeof AdminAuditRoute
-  '/admin/details': typeof AdminDetailsRoute
   '/admin/live': typeof AdminLiveRoute
+  '/admin/meetings': typeof AdminMeetingsRoute
   '/admin/registrants': typeof AdminRegistrantsRoute
-  '/admin/schedule': typeof AdminScheduleRoute
   '/admin/tools': typeof AdminToolsRoute
   '/app/chat': typeof AppChatRoute
   '/app/status': typeof AppStatusRoute
@@ -150,10 +141,9 @@ export interface FileRouteTypes {
     | '/admin'
     | '/app'
     | '/admin/audit'
-    | '/admin/details'
     | '/admin/live'
+    | '/admin/meetings'
     | '/admin/registrants'
-    | '/admin/schedule'
     | '/admin/tools'
     | '/app/chat'
     | '/app/status'
@@ -164,10 +154,9 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/admin/audit'
-    | '/admin/details'
     | '/admin/live'
+    | '/admin/meetings'
     | '/admin/registrants'
-    | '/admin/schedule'
     | '/admin/tools'
     | '/app/chat'
     | '/app/status'
@@ -180,10 +169,9 @@ export interface FileRouteTypes {
     | '/admin'
     | '/app'
     | '/admin/audit'
-    | '/admin/details'
     | '/admin/live'
+    | '/admin/meetings'
     | '/admin/registrants'
-    | '/admin/schedule'
     | '/admin/tools'
     | '/app/chat'
     | '/app/status'
@@ -257,13 +245,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminToolsRouteImport
       parentRoute: typeof AdminRoute
     }
-    '/admin/schedule': {
-      id: '/admin/schedule'
-      path: '/schedule'
-      fullPath: '/admin/schedule'
-      preLoaderRoute: typeof AdminScheduleRouteImport
-      parentRoute: typeof AdminRoute
-    }
     '/admin/registrants': {
       id: '/admin/registrants'
       path: '/registrants'
@@ -271,18 +252,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRegistrantsRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/meetings': {
+      id: '/admin/meetings'
+      path: '/meetings'
+      fullPath: '/admin/meetings'
+      preLoaderRoute: typeof AdminMeetingsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/live': {
       id: '/admin/live'
       path: '/live'
       fullPath: '/admin/live'
       preLoaderRoute: typeof AdminLiveRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/details': {
-      id: '/admin/details'
-      path: '/details'
-      fullPath: '/admin/details'
-      preLoaderRoute: typeof AdminDetailsRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/audit': {
@@ -304,20 +285,18 @@ declare module '@tanstack/react-router' {
 
 interface AdminRouteChildren {
   AdminAuditRoute: typeof AdminAuditRoute
-  AdminDetailsRoute: typeof AdminDetailsRoute
   AdminLiveRoute: typeof AdminLiveRoute
+  AdminMeetingsRoute: typeof AdminMeetingsRoute
   AdminRegistrantsRoute: typeof AdminRegistrantsRoute
-  AdminScheduleRoute: typeof AdminScheduleRoute
   AdminToolsRoute: typeof AdminToolsRoute
   AdminIndexRoute: typeof AdminIndexRoute
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
   AdminAuditRoute: AdminAuditRoute,
-  AdminDetailsRoute: AdminDetailsRoute,
   AdminLiveRoute: AdminLiveRoute,
+  AdminMeetingsRoute: AdminMeetingsRoute,
   AdminRegistrantsRoute: AdminRegistrantsRoute,
-  AdminScheduleRoute: AdminScheduleRoute,
   AdminToolsRoute: AdminToolsRoute,
   AdminIndexRoute: AdminIndexRoute,
 }
@@ -347,13 +326,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
