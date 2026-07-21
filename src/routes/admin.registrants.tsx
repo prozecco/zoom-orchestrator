@@ -82,10 +82,13 @@ function RegistrantsPage() {
   const [activeFilter, setActiveFilter] = useState("all-pending");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectedRegistrant, setSelectedRegistrant] = useState<Registrant | null>(null);
+  const [activeMeetingOnly, setActiveMeetingOnly] = useState(true);
 
   const registrantsQuery = useQuery({ queryKey: ["registrants"], queryFn: () => listRegistrants(), refetchInterval: 5000 });
+  const activeMeetingQuery = useQuery({ queryKey: ["active-meeting"], queryFn: () => getActiveMeeting(), refetchInterval: 15000 });
+  const activeMeeting = activeMeetingQuery.data;
 
-  const liveRegistrants: Registrant[] = (registrantsQuery.data ?? []).map((dbR) => ({
+  const allLive: (Registrant & { meeting_id: string | null })[] = (registrantsQuery.data ?? []).map((dbR) => ({
     id: dbR.id,
     name: dbR.name,
     telegramUser: dbR.telegram_user ? `@${dbR.telegram_user.replace(/^@/, "")}` : "@unknown",
@@ -96,9 +99,13 @@ function RegistrantsPage() {
     countryFlag: "🇹🇭",
     registeredAt: dbR.registered_at,
     source: dbR.telegram_id ? "telegram_miniapp" : "zoom_web",
+    meeting_id: dbR.meeting_id,
   }));
 
-  const registrantsList = liveRegistrants;
+  const registrantsList = activeMeetingOnly && activeMeeting
+    ? allLive.filter((r) => r.meeting_id === activeMeeting.id)
+    : allLive;
+  const outOfSyncCount = activeMeeting ? allLive.filter((r) => r.meeting_id !== activeMeeting.id).length : 0;
 
   // Modals for Member ID Settings and Attendance Management
   const [memberIdConfigOpen, setMemberIdConfigOpen] = useState(false);
