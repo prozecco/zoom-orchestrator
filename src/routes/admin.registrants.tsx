@@ -176,6 +176,48 @@ function RegistrantsPage() {
         </div>
       </div>
 
+      {/* Active meeting sync banner */}
+      <Card className={cn("border", activeMeeting ? "border-emerald-500/40 bg-emerald-500/5" : "border-amber-500/40 bg-amber-500/5")}>
+        <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
+          <div className="flex items-center gap-3 min-w-0">
+            {activeMeeting ? (
+              <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
+            ) : (
+              <AlertTriangle className="h-5 w-5 text-amber-400 shrink-0" />
+            )}
+            <div className="min-w-0">
+              <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Active Meeting</div>
+              {activeMeeting ? (
+                <div className="text-sm font-semibold truncate">
+                  {activeMeeting.topic}{" "}
+                  <span className="font-mono text-[11px] text-muted-foreground">#{activeMeeting.zoom_id}</span>
+                </div>
+              ) : (
+                <div className="text-sm font-semibold text-amber-300">No active meeting — sync one from Meetings tab</div>
+              )}
+              {activeMeeting && (
+                <div className="text-[11px] text-muted-foreground mt-0.5">
+                  {registrantsList.length} registrant{registrantsList.length === 1 ? "" : "s"} linked
+                  {outOfSyncCount > 0 && (
+                    <span className="text-amber-400"> · {outOfSyncCount} on other meetings</span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+          {activeMeeting && (
+            <Button
+              size="sm"
+              variant={activeMeetingOnly ? "default" : "outline"}
+              onClick={() => setActiveMeetingOnly((v) => !v)}
+              className="text-xs"
+            >
+              {activeMeetingOnly ? "Showing: Active only" : "Showing: All meetings"}
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Top Summary Cards */}
       <div className="grid grid-cols-4 gap-4">
         <Card className="bg-card border-border/50">
