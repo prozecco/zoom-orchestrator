@@ -82,7 +82,7 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
               .limit(1)
               .maybeSingle();
             if (reg) {
-              await supabaseAdmin.from("registrant_messages").insert({
+              await supabaseAdmin.from("messages").insert({
                 meeting_id: reg.meeting_id,
                 registrant_id: reg.id,
                 from_role: "attendee",

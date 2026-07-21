@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { MessageSquare, Video, ExternalLink } from "lucide-react";
 import { getActiveMeeting } from "@/lib/meetings.functions";
 import { listApprovedRegistrants } from "@/lib/messages.functions";
-import { formatUtc } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 
 export const Route = createFileRoute("/admin/live")({
   ssr: false,
