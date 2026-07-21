@@ -1,13 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { activeMeeting as mockActiveMeeting, registrants as mockRegistrants, schedule as mockSchedule, stats as mockStats } from "@/lib/mock-data";
-import { getActiveMeeting, listMeetings } from "@/lib/meetings.functions";
+import { getActiveMeeting, listMeetings, syncActiveMeeting } from "@/lib/meetings.functions";
 import { listRegistrants } from "@/lib/registrants.functions";
-import { Calendar, Radio, UserPlus, Video, Copy, ExternalLink, Users, ArrowRight, Check } from "lucide-react";
+import { Calendar, Radio, UserPlus, Video, Copy, ExternalLink, Users, ArrowRight, Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -17,9 +17,34 @@ export const Route = createFileRoute("/admin/")({
 });
 
 function AdminHome() {
+  const queryClient = useQueryClient();
   const activeQuery = useQuery({ queryKey: ["activeMeeting"], queryFn: () => getActiveMeeting(), refetchInterval: 5000 });
   const meetingsQuery = useQuery({ queryKey: ["meetings"], queryFn: () => listMeetings(), refetchInterval: 5000 });
   const registrantsQuery = useQuery({ queryKey: ["registrants"], queryFn: () => listRegistrants(), refetchInterval: 5000 });
+
+  // Direct Sync Mutation
+  const syncMutation = useMutation({
+    mutationFn: () => syncActiveMeeting({}),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["activeMeeting"] });
+      queryClient.invalidateQueries({ queryKey: ["meetings"] });
+      queryClient.invalidateQueries({ queryKey: ["registrants"] });
+      toast.success(`Successfully synced Zoom meeting: ${data?.topic || "Active Session"}`);
+    },
+    onError: (err: any) => {
+      console.error(err);
+      toast.error(err.message || "Failed to sync Zoom API");
+    }
+  });
+
+  // Background Auto-sync on load if no active session
+  const [hasAutoSynced, setHasAutoSynced] = useState(false);
+  useEffect(() => {
+    if (!activeQuery.isLoading && !activeQuery.data && !hasAutoSynced) {
+      setHasAutoSynced(true);
+      syncMutation.mutate();
+    }
+  }, [activeQuery.isLoading, activeQuery.data, hasAutoSynced]);
 
   const activeMeeting = activeQuery.data ? {
     id: activeQuery.data.zoom_id,
@@ -104,14 +129,27 @@ function AdminHome() {
             <div>
               <div className="font-bold text-sm text-foreground">No Live Session Currently Active</div>
               <div className="text-xs text-muted-foreground mt-0.5 font-mono">
-                Use Tools to sync active sessions directly from Zoom API
+                Using credentials defined in your Environment Variables (.env)
               </div>
             </div>
           </div>
-          <Button size="sm" variant="outline" asChild className="text-xs w-full sm:w-auto">
-            <Link to="/admin/tools">
-              Sync Zoom API <ArrowRight className="ml-1 h-3.5 w-3.5" />
-            </Link>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => syncMutation.mutate()}
+            disabled={syncMutation.isPending}
+            className="text-xs w-full sm:w-auto flex items-center justify-center gap-1.5"
+          >
+            {syncMutation.isPending ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Syncing Zoom...
+              </>
+            ) : (
+              <>
+                Sync Zoom API <ArrowRight className="ml-1 h-3.5 w-3.5" />
+              </>
+            )}
           </Button>
         </div>
       )}

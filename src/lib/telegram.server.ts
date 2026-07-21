@@ -3,22 +3,36 @@
 
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/telegram";
 
-function authHeaders(): Record<string, string> {
-  const lovableKey = process.env.LOVABLE_API_KEY;
-  const telegramKey = process.env.TELEGRAM_API_KEY;
-  if (!lovableKey) throw new Error("LOVABLE_API_KEY is not configured");
-  if (!telegramKey) throw new Error("TELEGRAM_API_KEY is not configured");
-  return {
-    Authorization: `Bearer ${lovableKey}`,
-    "X-Connection-Api-Key": telegramKey,
-    "Content-Type": "application/json",
-  };
+function getTelegramKey(): string {
+  const key = process.env.TELEGRAM_API_KEY || process.env.TELEGRAM_BOT_TOKEN;
+  if (!key) throw new Error("Neither TELEGRAM_API_KEY nor TELEGRAM_BOT_TOKEN is configured");
+  return key;
 }
 
 export async function telegramCall<T = unknown>(method: string, body: Record<string, unknown> = {}): Promise<T> {
-  const res = await fetch(`${GATEWAY_URL}/${method}`, {
+  const lovableKey = process.env.LOVABLE_API_KEY;
+  const telegramKey = getTelegramKey();
+
+  let url: string;
+  let headers: Record<string, string>;
+
+  if (lovableKey) {
+    url = `${GATEWAY_URL}/${method}`;
+    headers = {
+      Authorization: `Bearer ${lovableKey}`,
+      "X-Connection-Api-Key": telegramKey,
+      "Content-Type": "application/json",
+    };
+  } else {
+    url = `https://api.telegram.org/bot${telegramKey}/${method}`;
+    headers = {
+      "Content-Type": "application/json",
+    };
+  }
+
+  const res = await fetch(url, {
     method: "POST",
-    headers: authHeaders(),
+    headers,
     body: JSON.stringify(body),
   });
   const text = await res.text();
@@ -38,11 +52,10 @@ export async function sendTelegramMessage(chatId: number | string, text: string,
   return telegramCall<{ message_id: number }>("sendMessage", { chat_id: chatId, text, ...extra });
 }
 
-// Derive the webhook secret from the (stable) TELEGRAM_API_KEY so both the
+// Derive the webhook secret from the (stable) TELEGRAM_API_KEY or TELEGRAM_BOT_TOKEN so both the
 // setWebhook call and the receiving route can compute the same value.
 export async function deriveTelegramWebhookSecret(): Promise<string> {
-  const key = process.env.TELEGRAM_API_KEY;
-  if (!key) throw new Error("TELEGRAM_API_KEY is not configured");
+  const key = getTelegramKey();
   const enc = new TextEncoder();
   const digest = await crypto.subtle.digest("SHA-256", enc.encode(`telegram-webhook:${key}`));
   const b = new Uint8Array(digest);

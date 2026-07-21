@@ -45,8 +45,8 @@ ALTER TABLE public.registrants ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "registrants_read_all" ON public.registrants FOR SELECT USING (true);
 CREATE POLICY "registrants_insert_all" ON public.registrants FOR INSERT WITH CHECK (true);
 
--- messages
-CREATE TABLE public.messages (
+-- registrant_messages
+CREATE TABLE public.registrant_messages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   meeting_id UUID REFERENCES public.meetings(id) ON DELETE CASCADE,
   registrant_id UUID REFERENCES public.registrants(id) ON DELETE CASCADE,
@@ -56,12 +56,12 @@ CREATE TABLE public.messages (
   telegram_message_id BIGINT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE INDEX messages_registrant_idx ON public.messages(registrant_id, created_at);
-GRANT SELECT, INSERT ON public.messages TO anon, authenticated;
-GRANT ALL ON public.messages TO service_role;
-ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "messages_read_all" ON public.messages FOR SELECT USING (true);
-CREATE POLICY "messages_insert_all" ON public.messages FOR INSERT WITH CHECK (true);
+CREATE INDEX registrant_messages_registrant_idx ON public.registrant_messages(registrant_id, created_at);
+GRANT SELECT, INSERT ON public.registrant_messages TO anon, authenticated;
+GRANT ALL ON public.registrant_messages TO service_role;
+ALTER TABLE public.registrant_messages ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "registrant_messages_read_all" ON public.registrant_messages FOR SELECT USING (true);
+CREATE POLICY "registrant_messages_insert_all" ON public.registrant_messages FOR INSERT WITH CHECK (true);
 
 -- audit_log
 CREATE TABLE public.audit_log (
@@ -82,8 +82,8 @@ BEGIN NEW.updated_at = now(); RETURN NEW; END; $$ LANGUAGE plpgsql SET search_pa
 CREATE TRIGGER meetings_touch BEFORE UPDATE ON public.meetings FOR EACH ROW EXECUTE FUNCTION public.touch_updated_at();
 CREATE TRIGGER registrants_touch BEFORE UPDATE ON public.registrants FOR EACH ROW EXECUTE FUNCTION public.touch_updated_at();
 
--- realtime for messages + registrants
-ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
+-- realtime for registrant_messages + registrants
+ALTER PUBLICATION supabase_realtime ADD TABLE public.registrant_messages;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.registrants;
 
 -- Seed the active meeting placeholder (will be overwritten by Zoom sync)

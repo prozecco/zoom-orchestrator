@@ -95,7 +95,7 @@ export type Database = {
         }
         Relationships: []
       }
-      messages: {
+      registrant_messages: {
         Row: {
           created_at: string
           from_name: string
@@ -128,14 +128,14 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "messages_meeting_id_fkey"
+            foreignKeyName: "registrant_messages_meeting_id_fkey"
             columns: ["meeting_id"]
             isOneToOne: false
             referencedRelation: "meetings"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "messages_registrant_id_fkey"
+            foreignKeyName: "registrant_messages_registrant_id_fkey"
             columns: ["registrant_id"]
             isOneToOne: false
             referencedRelation: "registrants"

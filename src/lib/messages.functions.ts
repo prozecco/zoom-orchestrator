@@ -9,7 +9,7 @@ export const listThreadMessages = createServerFn({ method: "GET" })
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: rows, error } = await supabaseAdmin
-      .from("messages")
+      .from("registrant_messages")
       .select("*")
       .eq("registrant_id", data.registrantId)
       .order("created_at", { ascending: true });
@@ -61,7 +61,7 @@ export const sendChatMessage = createServerFn({ method: "POST" })
     }
 
     const { data: saved, error } = await supabaseAdmin
-      .from("messages")
+      .from("registrant_messages")
       .insert({
         meeting_id: reg.meeting_id,
         registrant_id: reg.id,
