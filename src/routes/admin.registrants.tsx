@@ -10,10 +10,11 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { RegistrantProfileSheet } from "@/components/admin/RegistrantProfile";
 import { MemberIdConfigDialog } from "@/components/admin/MemberIdConfigDialog";
 import { AttendanceManagementSheet } from "@/components/admin/AttendanceManagementSheet";
-import { registrants as mockRegistrants, type Registrant } from "@/lib/mock-data";
+import type { Registrant } from "@/lib/mock-data";
 import { listRegistrants } from "@/lib/registrants.functions";
+import { getActiveMeeting } from "@/lib/meetings.functions";
 import { formatBangkokRegistrationTime } from "@/lib/time-formatter";
-import { Search, Hash, Clock, Smartphone, Globe, Check, X } from "lucide-react";
+import { Search, Hash, Clock, Smartphone, Globe, Check, X, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useTelegramViewer } from "@/hooks/useTelegramViewer";
@@ -81,10 +82,13 @@ function RegistrantsPage() {
   const [activeFilter, setActiveFilter] = useState("all-pending");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectedRegistrant, setSelectedRegistrant] = useState<Registrant | null>(null);
+  const [activeMeetingOnly, setActiveMeetingOnly] = useState(true);
 
   const registrantsQuery = useQuery({ queryKey: ["registrants"], queryFn: () => listRegistrants(), refetchInterval: 5000 });
+  const activeMeetingQuery = useQuery({ queryKey: ["active-meeting"], queryFn: () => getActiveMeeting(), refetchInterval: 15000 });
+  const activeMeeting = activeMeetingQuery.data;
 
-  const liveRegistrants: Registrant[] = (registrantsQuery.data ?? []).map((dbR) => ({
+  const allLive: (Registrant & { meeting_id: string | null })[] = (registrantsQuery.data ?? []).map((dbR) => ({
     id: dbR.id,
     name: dbR.name,
     telegramUser: dbR.telegram_user ? `@${dbR.telegram_user.replace(/^@/, "")}` : "@unknown",
@@ -95,9 +99,13 @@ function RegistrantsPage() {
     countryFlag: "🇹🇭",
     registeredAt: dbR.registered_at,
     source: dbR.telegram_id ? "telegram_miniapp" : "zoom_web",
+    meeting_id: dbR.meeting_id,
   }));
 
-  const registrantsList = liveRegistrants;
+  const registrantsList = activeMeetingOnly && activeMeeting
+    ? allLive.filter((r) => r.meeting_id === activeMeeting.id)
+    : allLive;
+  const outOfSyncCount = activeMeeting ? allLive.filter((r) => r.meeting_id !== activeMeeting.id).length : 0;
 
   // Modals for Member ID Settings and Attendance Management
   const [memberIdConfigOpen, setMemberIdConfigOpen] = useState(false);
@@ -167,6 +175,48 @@ function RegistrantsPage() {
           </Button>
         </div>
       </div>
+
+      {/* Active meeting sync banner */}
+      <Card className={cn("border", activeMeeting ? "border-emerald-500/40 bg-emerald-500/5" : "border-amber-500/40 bg-amber-500/5")}>
+        <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
+          <div className="flex items-center gap-3 min-w-0">
+            {activeMeeting ? (
+              <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
+            ) : (
+              <AlertTriangle className="h-5 w-5 text-amber-400 shrink-0" />
+            )}
+            <div className="min-w-0">
+              <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Active Meeting</div>
+              {activeMeeting ? (
+                <div className="text-sm font-semibold truncate">
+                  {activeMeeting.topic}{" "}
+                  <span className="font-mono text-[11px] text-muted-foreground">#{activeMeeting.zoom_id}</span>
+                </div>
+              ) : (
+                <div className="text-sm font-semibold text-amber-300">No active meeting — sync one from Meetings tab</div>
+              )}
+              {activeMeeting && (
+                <div className="text-[11px] text-muted-foreground mt-0.5">
+                  {registrantsList.length} registrant{registrantsList.length === 1 ? "" : "s"} linked
+                  {outOfSyncCount > 0 && (
+                    <span className="text-amber-400"> · {outOfSyncCount} on other meetings</span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+          {activeMeeting && (
+            <Button
+              size="sm"
+              variant={activeMeetingOnly ? "default" : "outline"}
+              onClick={() => setActiveMeetingOnly((v) => !v)}
+              className="text-xs"
+            >
+              {activeMeetingOnly ? "Showing: Active only" : "Showing: All meetings"}
+            </Button>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Top Summary Cards */}
       <div className="grid grid-cols-4 gap-4">
