@@ -18,6 +18,7 @@ import { Route as AppStatusRouteImport } from './routes/app.status'
 import { Route as AppMessagesRouteImport } from './routes/app.messages'
 import { Route as AppChatRouteImport } from './routes/app.chat'
 import { Route as AdminToolsRouteImport } from './routes/admin.tools'
+import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
 import { Route as AdminRegistrantsRouteImport } from './routes/admin.registrants'
 import { Route as AdminMeetingsRouteImport } from './routes/admin.meetings'
 import { Route as AdminLiveRouteImport } from './routes/admin.live'
@@ -71,6 +72,11 @@ const AdminToolsRoute = AdminToolsRouteImport.update({
   path: '/tools',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminSettingsRoute = AdminSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminRegistrantsRoute = AdminRegistrantsRouteImport.update({
   id: '/registrants',
   path: '/registrants',
@@ -118,6 +124,7 @@ export interface FileRoutesByFullPath {
   '/admin/live': typeof AdminLiveRoute
   '/admin/meetings': typeof AdminMeetingsRoute
   '/admin/registrants': typeof AdminRegistrantsRoute
+  '/admin/settings': typeof AdminSettingsRoute
   '/admin/tools': typeof AdminToolsRoute
   '/app/chat': typeof AppChatRoute
   '/app/messages': typeof AppMessagesRoute
@@ -134,6 +141,7 @@ export interface FileRoutesByTo {
   '/admin/live': typeof AdminLiveRoute
   '/admin/meetings': typeof AdminMeetingsRoute
   '/admin/registrants': typeof AdminRegistrantsRoute
+  '/admin/settings': typeof AdminSettingsRoute
   '/admin/tools': typeof AdminToolsRoute
   '/app/chat': typeof AppChatRoute
   '/app/messages': typeof AppMessagesRoute
@@ -153,6 +161,7 @@ export interface FileRoutesById {
   '/admin/live': typeof AdminLiveRoute
   '/admin/meetings': typeof AdminMeetingsRoute
   '/admin/registrants': typeof AdminRegistrantsRoute
+  '/admin/settings': typeof AdminSettingsRoute
   '/admin/tools': typeof AdminToolsRoute
   '/app/chat': typeof AppChatRoute
   '/app/messages': typeof AppMessagesRoute
@@ -173,6 +182,7 @@ export interface FileRouteTypes {
     | '/admin/live'
     | '/admin/meetings'
     | '/admin/registrants'
+    | '/admin/settings'
     | '/admin/tools'
     | '/app/chat'
     | '/app/messages'
@@ -189,6 +199,7 @@ export interface FileRouteTypes {
     | '/admin/live'
     | '/admin/meetings'
     | '/admin/registrants'
+    | '/admin/settings'
     | '/admin/tools'
     | '/app/chat'
     | '/app/messages'
@@ -207,6 +218,7 @@ export interface FileRouteTypes {
     | '/admin/live'
     | '/admin/meetings'
     | '/admin/registrants'
+    | '/admin/settings'
     | '/admin/tools'
     | '/app/chat'
     | '/app/messages'
@@ -273,8 +285,7 @@ declare module '@tanstack/react-router' {
       id: '/app/messages'
       path: '/messages'
       fullPath: '/app/messages'
-      preLoaderRoute: typeof AppMessagesRouteImport
-      parentRoute: typeof AppRoute
+      preLoaderRoute: typeof AppRoute
     }
     '/app/chat': {
       id: '/app/chat'
@@ -288,6 +299,13 @@ declare module '@tanstack/react-router' {
       path: '/tools'
       fullPath: '/admin/tools'
       preLoaderRoute: typeof AdminToolsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/settings': {
+      id: '/admin/settings'
+      path: '/settings'
+      fullPath: '/admin/settings'
+      preLoaderRoute: typeof AdminSettingsRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/registrants': {
@@ -348,6 +366,7 @@ interface AdminRouteChildren {
   AdminLiveRoute: typeof AdminLiveRoute
   AdminMeetingsRoute: typeof AdminMeetingsRoute
   AdminRegistrantsRoute: typeof AdminRegistrantsRoute
+  AdminSettingsRoute: typeof AdminSettingsRoute
   AdminToolsRoute: typeof AdminToolsRoute
   AdminIndexRoute: typeof AdminIndexRoute
 }
@@ -358,6 +377,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminLiveRoute: AdminLiveRoute,
   AdminMeetingsRoute: AdminMeetingsRoute,
   AdminRegistrantsRoute: AdminRegistrantsRoute,
+  AdminSettingsRoute: AdminSettingsRoute,
   AdminToolsRoute: AdminToolsRoute,
   AdminIndexRoute: AdminIndexRoute,
 }
