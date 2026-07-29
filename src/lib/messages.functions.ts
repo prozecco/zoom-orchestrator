@@ -10,7 +10,7 @@ import { isAdminId } from "./admin-config";
 const MeetingInput = z.object({ meetingId: z.string().uuid() });
 
 export const listCentralMessages = createServerFn({ method: "GET" })
-  .inputValidator((raw) => MeetingInput.parse(raw))
+  .validator((raw) => MeetingInput.parse(raw))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: rows, error } = await supabaseAdmin
@@ -26,7 +26,7 @@ export const listCentralMessages = createServerFn({ method: "GET" })
 const RegistrantInput = z.object({ registrantId: z.string().uuid() });
 
 export const listThreadMessages = createServerFn({ method: "GET" })
-  .inputValidator((raw) => RegistrantInput.parse(raw))
+  .validator((raw) => RegistrantInput.parse(raw))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: rows, error } = await supabaseAdmin
@@ -39,7 +39,7 @@ export const listThreadMessages = createServerFn({ method: "GET" })
   });
 
 export const listApprovedRegistrants = createServerFn({ method: "GET" })
-  .inputValidator((raw) => MeetingInput.parse(raw))
+  .validator((raw) => MeetingInput.parse(raw))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: rows, error } = await supabaseAdmin
@@ -62,7 +62,7 @@ const SendInput = z.object({
 });
 
 export const sendChatMessage = createServerFn({ method: "POST" })
-  .inputValidator((raw) => SendInput.parse(raw))
+  .validator((raw) => SendInput.parse(raw))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { sendTelegramMessage } = await import("./telegram.server");

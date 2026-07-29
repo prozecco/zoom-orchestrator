@@ -59,7 +59,7 @@ function LivePage() {
             <CardDescription>
               Zoom ID {meeting.zoom_id}
               {meeting.host_email ? ` · Host: ${meeting.host_email}` : ""}
-              {meeting.start_time ? ` · ${formatUtc(meeting.start_time)}` : ""}
+              {meeting.start_time ? ` · ${formatDateTime(meeting.start_time)}` : ""}
             </CardDescription>
           </div>
           <Badge className={meeting.status === "started" ? "bg-emerald-500 hover:bg-emerald-500" : "bg-amber-500 hover:bg-amber-500"}>

@@ -49,7 +49,7 @@ export const groupedRegistrants = createServerFn({ method: "GET" }).handler(asyn
 const ByTgInput = z.object({ telegramId: z.number() });
 
 export const getMyRegistration = createServerFn({ method: "GET" })
-  .inputValidator((raw) => ByTgInput.parse(raw))
+  .validator((raw) => ByTgInput.parse(raw))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: rows, error } = await supabaseAdmin
@@ -65,7 +65,7 @@ export const getMyRegistration = createServerFn({ method: "GET" })
 const DetailInput = z.object({ registrantId: z.string().uuid() });
 
 export const getRegistrantDetail = createServerFn({ method: "GET" })
-  .inputValidator((raw) => DetailInput.parse(raw))
+  .validator((raw) => DetailInput.parse(raw))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: reg, error } = await supabaseAdmin
@@ -127,7 +127,7 @@ const SubmitInput = z.object({
 });
 
 export const submitRegistration = createServerFn({ method: "POST" })
-  .inputValidator((raw) => SubmitInput.parse(raw))
+  .validator((raw) => SubmitInput.parse(raw))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { sendTelegramMessage } = await import("./telegram.server");
@@ -176,7 +176,7 @@ const UpdateStatusInput = z.object({
 });
 
 export const updateRegistrantStatus = createServerFn({ method: "POST" })
-  .inputValidator((raw) => UpdateStatusInput.parse(raw))
+  .validator((raw) => UpdateStatusInput.parse(raw))
   .handler(async ({ data }) => {
     if (!isAdminId(data.actorTelegramId)) throw new Error("Not authorized");
 
@@ -226,7 +226,7 @@ export const updateRegistrantStatus = createServerFn({ method: "POST" })
 const CancelInput = z.object({ registrantId: z.string().uuid(), telegramId: z.number() });
 
 export const cancelMyRegistration = createServerFn({ method: "POST" })
-  .inputValidator((raw) => CancelInput.parse(raw))
+  .validator((raw) => CancelInput.parse(raw))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: reg, error: rErr } = await supabaseAdmin
@@ -258,7 +258,7 @@ const NoteInput = z.object({
 });
 
 export const addRegistrantNote = createServerFn({ method: "POST" })
-  .inputValidator((raw) => NoteInput.parse(raw))
+  .validator((raw) => NoteInput.parse(raw))
   .handler(async ({ data }) => {
     if (!isAdminId(data.actorTelegramId)) throw new Error("Not authorized");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

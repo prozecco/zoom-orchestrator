@@ -12,7 +12,7 @@ const ResolveInput = z.object({
 });
 
 export const resolveViewer = createServerFn({ method: "POST" })
-  .inputValidator((raw) => ResolveInput.parse(raw))
+  .validator((raw) => ResolveInput.parse(raw))
   .handler(async ({ data }) => {
     const id = data.telegramId ?? null;
     if (id && isAdminId(id)) return { role: "admin" as const, telegramId: id };
@@ -26,7 +26,7 @@ const BroadcastInput = z.object({
 });
 
 export const broadcastToApproved = createServerFn({ method: "POST" })
-  .inputValidator((raw) => BroadcastInput.parse(raw))
+  .validator((raw) => BroadcastInput.parse(raw))
   .handler(async ({ data }) => {
     if (!isAdminId(data.actorTelegramId)) throw new Error("Not authorized");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
