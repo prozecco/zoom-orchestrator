@@ -24,6 +24,7 @@ import { Route as AdminLiveRouteImport } from './routes/admin.live'
 import { Route as AdminChatRouteImport } from './routes/admin.chat'
 import { Route as AdminAuditRouteImport } from './routes/admin.audit'
 import { Route as ApiPublicTelegramWebhookRouteImport } from './routes/api/public/telegram/webhook'
+import { Route as ApiPublicZoomWebhookRouteImport } from './routes/api/public/zoom/webhook'
 
 const AppRoute = AppRouteImport.update({
   id: '/app',
@@ -101,6 +102,12 @@ const ApiPublicTelegramWebhookRoute =
     path: '/api/public/telegram/webhook',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicZoomWebhookRoute =
+  ApiPublicZoomWebhookRouteImport.update({
+    id: '/api/public/zoom/webhook',
+    path: '/api/public/zoom/webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -118,6 +125,7 @@ export interface FileRoutesByFullPath {
   '/admin/': typeof AdminIndexRoute
   '/app/': typeof AppIndexRoute
   '/api/public/telegram/webhook': typeof ApiPublicTelegramWebhookRoute
+  '/api/public/zoom/webhook': typeof ApiPublicZoomWebhookRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -133,6 +141,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminIndexRoute
   '/app': typeof AppIndexRoute
   '/api/public/telegram/webhook': typeof ApiPublicTelegramWebhookRoute
+  '/api/public/zoom/webhook': typeof ApiPublicZoomWebhookRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -151,6 +160,7 @@ export interface FileRoutesById {
   '/admin/': typeof AdminIndexRoute
   '/app/': typeof AppIndexRoute
   '/api/public/telegram/webhook': typeof ApiPublicTelegramWebhookRoute
+  '/api/public/zoom/webhook': typeof ApiPublicZoomWebhookRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -170,6 +180,7 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/app/'
     | '/api/public/telegram/webhook'
+    | '/api/public/zoom/webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -185,6 +196,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/app'
     | '/api/public/telegram/webhook'
+    | '/api/public/zoom/webhook'
   id:
     | '__root__'
     | '/'
@@ -202,6 +214,7 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/app/'
     | '/api/public/telegram/webhook'
+    | '/api/public/zoom/webhook'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -209,6 +222,7 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRouteWithChildren
   AppRoute: typeof AppRouteWithChildren
   ApiPublicTelegramWebhookRoute: typeof ApiPublicTelegramWebhookRoute
+  ApiPublicZoomWebhookRoute: typeof ApiPublicZoomWebhookRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -318,6 +332,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicTelegramWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/zoom/webhook': {
+      id: '/api/public/zoom/webhook'
+      path: '/api/public/zoom/webhook'
+      fullPath: '/api/public/zoom/webhook'
+      preLoaderRoute: typeof ApiPublicZoomWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -364,6 +385,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRouteWithChildren,
   AppRoute: AppRouteWithChildren,
   ApiPublicTelegramWebhookRoute: ApiPublicTelegramWebhookRoute,
+  ApiPublicZoomWebhookRoute: ApiPublicZoomWebhookRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -12,9 +12,8 @@ export const Route = createFileRoute("/app")({
 });
 
 const tabs = [
-  { to: "/app", label: "My Status", icon: CircleCheck, exact: true },
-  { to: "/app/messages", label: "Messages", icon: MessageSquare },
-  { to: "/app/chat", label: "Live Chat", icon: Users },
+  { to: "/app", label: "Home", icon: CircleCheck, exact: true },
+  { to: "/app/chat", label: "Chat", icon: MessageSquare },
 ];
 
 function AppLayout() {

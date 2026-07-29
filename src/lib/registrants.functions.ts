@@ -1,278 +1,154 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { isAdminId } from "./admin-config";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { notifyAdminRegistration } from "./telegram-notifier.server";
 
-export type RegistrantStatus = "pending" | "on_hold" | "approved" | "denied" | "cancelled" | "attended";
-
-export const listRegistrants = createServerFn({ method: "GET" }).handler(async () => {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data, error } = await supabaseAdmin
-    .from("registrants")
-    .select("*")
-    .order("registered_at", { ascending: false });
-  if (error) throw new Error(error.message);
-  return data ?? [];
+// Schema for registration submission
+const SubmitRegistrationSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  email: z.string().email("Invalid email address"),
+  phone: z.string().optional(),
+  telegramUser: z.string().optional(),
+  telegramId: z.number().nullable().optional(),
 });
 
-// Grouped view. `pending` older than 3 days is surfaced as `on_hold` at read time
-// without mutating the row (admins can also promote explicitly if they want).
-export const groupedRegistrants = createServerFn({ method: "GET" }).handler(async () => {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data, error } = await supabaseAdmin
-    .from("registrants")
-    .select("*")
-    .order("registered_at", { ascending: false });
-  if (error) throw new Error(error.message);
-
-  const rows = data ?? [];
-  const threeDaysAgo = Date.now() - 3 * 24 * 60 * 60 * 1000;
-
-  const groups: Record<RegistrantStatus, typeof rows> = {
-    pending: [], on_hold: [], approved: [], denied: [], cancelled: [], attended: [],
-  };
-
-  for (const r of rows) {
-    let bucket = r.status as RegistrantStatus;
-    if (bucket === "pending" && new Date(r.registered_at).getTime() < threeDaysAgo) {
-      bucket = "on_hold";
-    }
-    if (bucket === "on_hold" && (r.status as string) === "on_hold") {
-      // keep as on_hold
-    }
-    // fall back to pending bucket if unrecognized
-    if (!groups[bucket]) bucket = "pending";
-    groups[bucket].push(r);
-  }
-  return groups;
-});
-
-const ByTgInput = z.object({ telegramId: z.number().optional().nullable() });
-
-export const getMyRegistration = createServerFn({ method: "GET" })
-  .validator((raw) => ByTgInput.parse(raw ?? {}))
+/**
+ * Submits a new registrant from Telegram Mini App / Web App
+ * and triggers a Telegram Notification to Admin.
+ */
+export const submitRegistration = createServerFn({ method: "POST" })
+  .validator((data: unknown) => SubmitRegistrationSchema.parse(data))
   .handler(async ({ data }) => {
-    if (!data?.telegramId) return null;
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: rows, error } = await supabaseAdmin
+    // 1. Get current active meeting
+    const { data: activeMeeting } = await supabaseAdmin
+      .from("meetings")
+      .select("*")
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (!activeMeeting) {
+      throw new Error("No active meeting found to register for");
+    }
+
+    const name = data.name.trim();
+    const email = data.email.trim().toLowerCase();
+    const phone = data.phone?.trim() || null;
+    const telegramId = data.telegramId || null;
+    const telegramUser = data.telegramUser || null;
+
+    // 2. Upsert registrant into Supabase
+    const { data: inserted, error } = await supabaseAdmin
+      .from("registrants")
+      .upsert(
+        {
+          meeting_id: activeMeeting.id,
+          name,
+          email,
+          phone,
+          telegram_id: telegramId,
+          telegram_user: telegramUser,
+          status: "approved", // Auto-approved for Mini App users
+          registered_at: new Date().toISOString(),
+        } as never,
+        { onConflict: "email,meeting_id" }
+      )
+      .select()
+      .single();
+
+    if (error) {
+      console.error("[registrants.functions] Error upserting registrant:", error);
+      throw new Error(`Failed to save registration: ${error.message}`);
+    }
+
+    // 3. Trigger Telegram Notification to Admin
+    await notifyAdminRegistration({
+      name,
+      email,
+      phone,
+      telegramId,
+      telegramHandle: telegramUser,
+      source: "telegram_mini_app",
+      meetingTopic: activeMeeting.topic,
+      registeredAt: new Date().toISOString(),
+    });
+
+    return inserted;
+  });
+
+/**
+ * Retrieves the current user's registration by Telegram ID or email
+ */
+export const getMyRegistration = createServerFn({ method: "GET" })
+  .validator((data: unknown) =>
+    z.object({ telegramId: z.number().nullable().optional() }).parse(data)
+  )
+  .handler(async ({ data }) => {
+    if (!data.telegramId) return null;
+
+    const { data: reg, error } = await supabaseAdmin
       .from("registrants")
       .select("*, meetings(*)")
       .eq("telegram_id", data.telegramId)
       .order("registered_at", { ascending: false })
-      .limit(1);
-    if (error) throw new Error(error.message);
-    return rows?.[0] ?? null;
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.error("[registrants.functions] Error fetching user registration:", error);
+      return null;
+    }
+
+    return reg;
   });
 
-const DetailInput = z.object({ registrantId: z.string().uuid() });
-
-export const getRegistrantDetail = createServerFn({ method: "GET" })
-  .validator((raw) => DetailInput.parse(raw))
+/**
+ * Lists all registrants for admin dashboard
+ */
+export const listRegistrants = createServerFn({ method: "GET" })
+  .validator((data: unknown) =>
+    z.object({ status: z.string().optional() }).optional().parse(data)
+  )
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: reg, error } = await supabaseAdmin
+    let query = supabaseAdmin
       .from("registrants")
-      .select("*, meetings(id, topic, zoom_id, start_time)")
-      .eq("id", data.registrantId)
-      .single();
-    if (error) throw new Error(error.message);
-
-    // History: same email OR same telegram_id, other rows.
-    const email = (reg.email ?? "").toLowerCase();
-    const tgId = reg.telegram_id;
-    let historyQuery = supabaseAdmin
-      .from("registrants")
-      .select("id, name, telegram_user, telegram_id, email, status, registered_at, meetings(topic)")
-      .neq("id", reg.id)
+      .select("*, meetings(topic, zoom_id)")
       .order("registered_at", { ascending: false });
 
-    if (tgId) {
-      historyQuery = historyQuery.or(`email.ilike.${email},telegram_id.eq.${tgId}`);
-    } else {
-      historyQuery = historyQuery.ilike("email", email);
+    if (data?.status) {
+      query = query.eq("status", data.status);
     }
-    const { data: history } = await historyQuery;
 
-    const names = new Set<string>();
-    const handles = new Set<string>();
-    for (const h of history ?? []) {
-      if (h.name) names.add(h.name);
-      if (h.telegram_user) handles.add(h.telegram_user);
+    const { data: list, error } = await query;
+    if (error) {
+      console.error("[registrants.functions] Error listing registrants:", error);
+      throw new Error(error.message);
     }
-    if (reg.name) names.add(reg.name);
-    if (reg.telegram_user) handles.add(reg.telegram_user);
 
-    const { data: notes } = await supabaseAdmin
-      .from("registrant_notes")
-      .select("*")
-      .eq("registrant_id", reg.id)
-      .order("created_at", { ascending: true });
-
-    return {
-      registrant: reg,
-      history: {
-        prior_count: history?.length ?? 0,
-        past: history ?? [],
-        name_variants: Array.from(names),
-        handle_variants: Array.from(handles),
-      },
-      notes: notes ?? [],
-    };
+    return list || [];
   });
 
-const SubmitInput = z.object({
-  name: z.string().min(1).max(120),
-  telegramUser: z.string().min(1).max(64),
-  email: z.string().email(),
-  phone: z.string().min(3).max(40),
-  telegramId: z.number().nullable().optional(),
-});
-
-export const submitRegistration = createServerFn({ method: "POST" })
-  .validator((raw) => SubmitInput.parse(raw))
-  .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { sendTelegramMessage } = await import("./telegram.server");
-
-    const { data: meeting, error: mErr } = await supabaseAdmin
-      .from("meetings").select("id, topic").eq("is_active", true).maybeSingle();
-    if (mErr) throw new Error(mErr.message);
-    if (!meeting) throw new Error("No active meeting is configured");
-
-    const { data: saved, error } = await supabaseAdmin
-      .from("registrants")
-      .insert({
-        meeting_id: meeting.id,
-        telegram_id: data.telegramId ?? null,
-        telegram_user: data.telegramUser,
-        name: data.name,
-        email: data.email,
-        phone: data.phone,
-        status: "pending",
-      })
-      .select()
-      .single();
-    if (error) throw new Error(error.message);
-
-    await supabaseAdmin.from("audit_log").insert({
-      actor: data.telegramId ? `tg:${data.telegramId}` : "web",
-      action: "Submitted registration",
-      target: data.name,
-    });
-
-    const notify = process.env.NOTIFICATION_CHAT_ID;
-    if (notify) {
-      try {
-        await sendTelegramMessage(notify,
-          `New registration for "${meeting.topic}"\n${data.name} (${data.telegramUser})\n${data.email} · ${data.phone}`);
-      } catch (e) { console.error("notify failed", e); }
-    }
-
-    return saved;
-  });
-
-const UpdateStatusInput = z.object({
-  registrantId: z.string().uuid(),
-  status: z.enum(["pending", "on_hold", "approved", "denied", "cancelled", "attended"]),
-  actorTelegramId: z.number(),
-});
-
+/**
+ * Updates a registrant's status (approved, denied, on_hold, etc.)
+ */
 export const updateRegistrantStatus = createServerFn({ method: "POST" })
-  .validator((raw) => UpdateStatusInput.parse(raw))
+  .validator((data: unknown) =>
+    z.object({
+      id: z.string(),
+      status: z.enum(["pending", "approved", "denied", "on_hold", "cancelled", "attended"]),
+    }).parse(data)
+  )
   .handler(async ({ data }) => {
-    if (!isAdminId(data.actorTelegramId)) throw new Error("Not authorized");
-
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { sendTelegramMessage } = await import("./telegram.server");
-
-    const patch = {
-      status: data.status,
-      ...(data.status === "cancelled" ? { cancelled_at: new Date().toISOString() } : {}),
-    };
-
-    const { data: saved, error } = await supabaseAdmin
+    const { data: updated, error } = await supabaseAdmin
       .from("registrants")
-      .update(patch)
-      .eq("id", data.registrantId)
-      .select("*, meetings(topic, join_url, passcode)")
+      .update({ status: data.status } as never)
+      .eq("id", data.id)
+      .select()
       .single();
-    if (error) throw new Error(error.message);
 
-    await supabaseAdmin.from("audit_log").insert({
-      actor: `tg:${data.actorTelegramId}`,
-      action: `Set registrant status to ${data.status}`,
-      target: saved.name,
-    });
-
-    if (saved.telegram_id) {
-      try {
-        const m = (saved as any).meetings ?? {};
-        if (data.status === "approved") {
-          const parts = [`✅ You're approved for "${m.topic ?? "the meeting"}".`];
-          if (m.join_url) parts.push(`Join: ${m.join_url}`);
-          if (m.passcode) parts.push(`Passcode: ${m.passcode}`);
-          await sendTelegramMessage(saved.telegram_id, parts.join("\n"));
-        } else if (data.status === "denied") {
-          await sendTelegramMessage(saved.telegram_id,
-            `Your registration for "${m.topic ?? "the meeting"}" was not approved.`);
-        } else if (data.status === "on_hold") {
-          await sendTelegramMessage(saved.telegram_id,
-            `Your registration for "${m.topic ?? "the meeting"}" is on hold pending review.`);
-        }
-      } catch (e) { console.error("attendee notify failed", e); }
+    if (error) {
+      console.error("[registrants.functions] Error updating status:", error);
+      throw new Error(error.message);
     }
 
-    return saved;
-  });
-
-const CancelInput = z.object({ registrantId: z.string().uuid(), telegramId: z.number() });
-
-export const cancelMyRegistration = createServerFn({ method: "POST" })
-  .validator((raw) => CancelInput.parse(raw))
-  .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: reg, error: rErr } = await supabaseAdmin
-      .from("registrants").select("id, telegram_id, name").eq("id", data.registrantId).single();
-    if (rErr) throw new Error(rErr.message);
-    if (reg.telegram_id !== data.telegramId) throw new Error("Not authorized");
-
-    const { data: saved, error } = await supabaseAdmin
-      .from("registrants")
-      .update({ status: "cancelled", cancelled_at: new Date().toISOString() })
-      .eq("id", data.registrantId)
-      .select()
-      .single();
-    if (error) throw new Error(error.message);
-
-    await supabaseAdmin.from("audit_log").insert({
-      actor: `tg:${data.telegramId}`,
-      action: "Cancelled own registration",
-      target: reg.name,
-    });
-    return saved;
-  });
-
-const NoteInput = z.object({
-  registrantId: z.string().uuid(),
-  body: z.string().min(1).max(2000),
-  actorTelegramId: z.number(),
-  actorName: z.string().min(1).max(120),
-});
-
-export const addRegistrantNote = createServerFn({ method: "POST" })
-  .validator((raw) => NoteInput.parse(raw))
-  .handler(async ({ data }) => {
-    if (!isAdminId(data.actorTelegramId)) throw new Error("Not authorized");
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: saved, error } = await supabaseAdmin
-      .from("registrant_notes")
-      .insert({
-        registrant_id: data.registrantId,
-        author_tg_id: data.actorTelegramId,
-        author_name: data.actorName,
-        body: data.body,
-      })
-      .select()
-      .single();
-    if (error) throw new Error(error.message);
-    return saved;
+    return updated;
   });

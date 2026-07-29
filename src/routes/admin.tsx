@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { Shield, Home, Users, Radio, ScrollText, Wrench, ArrowLeft, MessageSquare } from "lucide-react";
+import { Shield, LayoutDashboard, Users, Radio, Settings, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTelegram } from "@/hooks/useTelegram";
 
@@ -11,13 +11,11 @@ export const Route = createFileRoute("/admin")({
   component: AdminLayout,
 });
 
-const tabs: { to: string; label: string; icon: typeof Home; exact?: boolean }[] = [
-  { to: "/admin", label: "Home", icon: Home, exact: true },
-  { to: "/admin/registrants", label: "Users", icon: Users },
-  { to: "/admin/chat", label: "Live Chat", icon: MessageSquare },
+const tabs: { to: string; label: string; icon: any; exact?: boolean }[] = [
+  { to: "/admin", label: "Dashboard", icon: LayoutDashboard, exact: true },
+  { to: "/admin/registrants", label: "Registrants", icon: Users },
   { to: "/admin/live", label: "Live", icon: Radio },
-  { to: "/admin/audit", label: "Audit", icon: ScrollText },
-  { to: "/admin/tools", label: "Tools", icon: Wrench },
+  { to: "/admin/settings", label: "Settings", icon: Settings },
 ];
 
 function AdminLayout() {

@@ -1,113 +1,89 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { isAdminId } from "./admin-config";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
-// Real chat backed by public.messages
-// (columns: meeting_id, registrant_id, from_role, from_name, text, telegram_message_id, created_at)
-// Central room = messages where registrant_id IS NULL.
-// 1:1 = messages with a specific registrant_id.
+// Schema definitions
+const SendChatMessageSchema = z.object({
+  meetingId: z.string(),
+  registrantId: z.string().optional(),
+  fromRole: z.enum(["admin", "attendee", "host"]),
+  fromName: z.string(),
+  text: z.string().min(1, "Message text cannot be empty"),
+  channel: z.enum(["dm", "meeting_1to1", "meeting_central"]).optional(),
+});
 
-const MeetingInput = z.object({ meetingId: z.string().uuid() });
+export const sendChatMessage = createServerFn({ method: "POST" })
+  .validator((data: unknown) => SendChatMessageSchema.parse(data))
+  .handler(async ({ data }) => {
+    const { data: inserted, error } = await supabaseAdmin
+      .from("messages")
+      .insert({
+        meeting_id: data.meetingId,
+        registrant_id: data.registrantId || null,
+        from_role: data.fromRole,
+        from_name: data.fromName,
+        text: data.text,
+        channel: data.channel || "meeting_central",
+        created_at: new Date().toISOString(),
+      } as never)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("[messages.functions] Error sending message:", error);
+      throw new Error(`Failed to send message: ${error.message}`);
+    }
+
+    return inserted;
+  });
 
 export const listCentralMessages = createServerFn({ method: "GET" })
-  .validator((raw) => MeetingInput.parse(raw))
+  .validator((data: unknown) => z.object({ meetingId: z.string() }).parse(data))
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: rows, error } = await supabaseAdmin
+    const { data: messages, error } = await supabaseAdmin
       .from("messages")
       .select("*")
       .eq("meeting_id", data.meetingId)
-      .is("registrant_id", null)
       .order("created_at", { ascending: true });
-    if (error) throw new Error(error.message);
-    return rows ?? [];
+
+    if (error) {
+      console.error("[messages.functions] Error fetching central messages:", error);
+      return [];
+    }
+
+    return messages || [];
   });
 
-const RegistrantInput = z.object({ registrantId: z.string().uuid() });
-
 export const listThreadMessages = createServerFn({ method: "GET" })
-  .validator((raw) => RegistrantInput.parse(raw))
+  .validator((data: unknown) => z.object({ registrantId: z.string() }).parse(data))
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: rows, error } = await supabaseAdmin
+    const { data: messages, error } = await supabaseAdmin
       .from("messages")
       .select("*")
       .eq("registrant_id", data.registrantId)
       .order("created_at", { ascending: true });
-    if (error) throw new Error(error.message);
-    return rows ?? [];
+
+    if (error) {
+      console.error("[messages.functions] Error fetching thread messages:", error);
+      return [];
+    }
+
+    return messages || [];
   });
 
 export const listApprovedRegistrants = createServerFn({ method: "GET" })
-  .validator((raw) => MeetingInput.parse(raw))
+  .validator((data: unknown) => z.object({ meetingId: z.string() }).parse(data))
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: rows, error } = await supabaseAdmin
+    const { data: list, error } = await supabaseAdmin
       .from("registrants")
-      .select("id, name, telegram_user, telegram_id, email, status")
+      .select("*")
       .eq("meeting_id", data.meetingId)
-      .in("status", ["approved", "attended"])
       .order("name", { ascending: true });
-    if (error) throw new Error(error.message);
-    return rows ?? [];
-  });
 
-const SendInput = z.object({
-  meetingId: z.string().uuid(),
-  registrantId: z.string().uuid().nullable().optional(),
-  text: z.string().min(1).max(2000),
-  fromRole: z.enum(["host", "attendee"]),
-  fromName: z.string().min(1).max(120),
-  actorTelegramId: z.number().nullable().optional(),
-});
-
-export const sendChatMessage = createServerFn({ method: "POST" })
-  .validator((raw) => SendInput.parse(raw))
-  .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { sendTelegramMessage } = await import("./telegram.server");
-
-    if (data.fromRole === "host" && !isAdminId(data.actorTelegramId ?? undefined)) {
-      throw new Error("Not authorized");
+    if (error) {
+      console.error("[messages.functions] Error listing registrants:", error);
+      return [];
     }
 
-    let telegramMessageId: number | null = null;
-
-    // 1:1 → forward to the registrant's telegram if we have it.
-    if (data.registrantId && data.fromRole === "host") {
-      const { data: reg } = await supabaseAdmin
-        .from("registrants")
-        .select("telegram_id")
-        .eq("id", data.registrantId)
-        .maybeSingle();
-      if (reg?.telegram_id) {
-        try {
-          const res = await sendTelegramMessage(reg.telegram_id, `💬 Host: ${data.text}`);
-          telegramMessageId = res?.message_id ?? null;
-        } catch (e) { console.error("host->tg failed", e); }
-      }
-    } else if (data.registrantId && data.fromRole === "attendee") {
-      const notify = process.env.NOTIFICATION_CHAT_ID;
-      if (notify) {
-        try {
-          const res = await sendTelegramMessage(notify, `💬 ${data.fromName}: ${data.text}`);
-          telegramMessageId = res?.message_id ?? null;
-        } catch (e) { console.error("attendee->tg failed", e); }
-      }
-    }
-
-    const { data: saved, error } = await supabaseAdmin
-      .from("messages")
-      .insert({
-        meeting_id: data.meetingId,
-        registrant_id: data.registrantId ?? null,
-        from_role: data.fromRole,
-        from_name: data.fromName,
-        text: data.text,
-        telegram_message_id: telegramMessageId,
-      })
-      .select()
-      .single();
-    if (error) throw new Error(error.message);
-    return saved;
+    return list || [];
   });

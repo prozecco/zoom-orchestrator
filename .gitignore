@@ -19,8 +19,11 @@ dist-ssr
 
 # Agent Scratch & Screenshots
 .agents/
+.agent/
+.continue/
 Screenshots/
 .tempmediaStorage/
+temp_read.txt
 
 # Wrangler / Cloudflare
 .wrangler/

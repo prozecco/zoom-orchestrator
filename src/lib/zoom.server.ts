@@ -131,3 +131,81 @@ export async function listUpcomingZoomMeetings(userId = "me", custom?: { clientI
   const data = (await res.json()) as { meetings?: ZoomMeeting[] };
   return data.meetings ?? [];
 }
+
+export type ZoomStandardQuestion = {
+  field_name: string;
+  required: boolean;
+};
+
+export type ZoomCustomQuestion = {
+  title: string;
+  type: 'short' | 'single';
+  required: boolean;
+  answers: string[];
+};
+
+export type ZoomRegistrationQuestions = {
+  questions: ZoomStandardQuestion[];
+  custom_questions: ZoomCustomQuestion[];
+};
+
+export async function fetchZoomRegistrationQuestions(
+  meetingId: string,
+  custom?: { clientId?: string; clientSecret?: string; accountId?: string }
+): Promise<ZoomRegistrationQuestions> {
+  const res = await zoomFetch(`/meetings/${encodeURIComponent(meetingId)}/registrants/questions`, custom);
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Zoom getRegistrationQuestions failed [${res.status}]: ${body}`);
+  }
+  return (await res.json()) as ZoomRegistrationQuestions;
+}
+
+export type ZoomRegistrantPayload = {
+  email: string;
+  first_name: string;
+  last_name?: string;
+  phone?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+  country?: string;
+  industry?: string;
+  org?: string;
+  job_title?: string;
+  purchasing_time_frame?: string;
+  role_in_purchase_process?: string;
+  no_of_employees?: string;
+  comments?: string;
+  custom_questions?: Array<{ title: string; value: string }>;
+};
+
+export type ZoomRegistrantResponse = {
+  registrant_id: string;
+  id: number;
+  topic: string;
+  start_time: string;
+  join_url: string;
+};
+
+export async function submitZoomRegistrant(
+  meetingId: string,
+  payload: ZoomRegistrantPayload,
+  custom?: { clientId?: string; clientSecret?: string; accountId?: string }
+): Promise<ZoomRegistrantResponse> {
+  const token = await getZoomToken(custom);
+  const res = await fetch(`https://api.zoom.us/v2/meetings/${encodeURIComponent(meetingId)}/registrants`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Zoom submitRegistrant failed [${res.status}]: ${body}`);
+  }
+  return (await res.json()) as ZoomRegistrantResponse;
+}
