@@ -1,17 +1,20 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { activeMeeting } from "@/lib/mock-data";
+import { activeMeeting as mockActiveMeeting } from "@/lib/mock-data";
+import { getActiveMeeting } from "@/lib/meetings.functions";
+import { submitRegistration, getMyRegistration } from "@/lib/registrants.functions";
 import { toast } from "sonner";
 import { useTelegram } from "@/hooks/useTelegram";
 import { User, CheckCircle2, Clock, ExternalLink, ShieldCheck } from "lucide-react";
 import { trackZoomJoin } from "@/lib/telegram-sync";
-import { buildZoomRegistrantPayload, mockSubmitZoomRegistrant } from "@/lib/zoom-sync";
+import { buildZoomRegistrantPayload } from "@/lib/zoom-sync";
 import { resolveIdentity } from "@/lib/identity-resolver";
 import { cn } from "@/lib/utils";
 
@@ -22,12 +25,36 @@ export const Route = createFileRoute("/app/")({
 
 function UnifiedAppPage() {
   const { user, isTelegram, haptic, mainButton, openLink } = useTelegram();
+
+  // Fetch real active meeting from Supabase DB
+  const activeMeetingQuery = useQuery({
+    queryKey: ["activeMeeting"],
+    queryFn: () => getActiveMeeting(),
+    refetchInterval: 5000,
+  });
+
+  const dbMeeting = activeMeetingQuery.data;
+  const currentMeeting = dbMeeting ? {
+    id: dbMeeting.zoom_id,
+    topic: dbMeeting.topic,
+    host: dbMeeting.host_email ?? "Host",
+    startTime: dbMeeting.start_time ?? new Date().toISOString(),
+    durationMin: dbMeeting.duration_min ?? 60,
+    passcode: dbMeeting.passcode ?? "1766",
+    joinUrl: dbMeeting.join_url ?? `https://zoom.us/j/${dbMeeting.zoom_id}`,
+  } : mockActiveMeeting;
   
   // Registration and Status state
   const [isRegistered, setIsRegistered] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [status, setStatus] = useState<"pending" | "approved" | "rejected">("approved");
-  const [personalJoinUrl, setPersonalJoinUrl] = useState<string>(activeMeeting.joinUrl);
+  const [personalJoinUrl, setPersonalJoinUrl] = useState<string>(currentMeeting.joinUrl);
+
+  useEffect(() => {
+    if (currentMeeting.joinUrl) {
+      setPersonalJoinUrl(currentMeeting.joinUrl);
+    }
+  }, [currentMeeting.joinUrl]);
 
   // Registration form inputs
   const fullName = [user.first_name, user.last_name].filter(Boolean).join(" ");
@@ -48,45 +75,27 @@ function UnifiedAppPage() {
     setSubmitting(true);
     haptic?.impactOccurred("medium");
 
-    // Step 1: Run Identity Resolution check
-    const identityResult = resolveIdentity(
-      {
-        telegram_id: user.id,
-        email,
-        first_name: user.first_name || name.split(" ")[0],
-        last_name: user.last_name || name.split(" ").slice(1).join(" ") || "",
-        meeting_id: activeMeeting.id,
-      },
-      null,
-      null,
-      null,
-      []
-    );
-
-    if (!identityResult.allowed) {
+    try {
+      await submitRegistration({
+        data: {
+          name,
+          telegramUser: user.username ? `@${user.username}` : (user.first_name || "Guest"),
+          email,
+          phone: phone || "N/A",
+          telegramId: user.id || null,
+        }
+      });
+      setSubmitting(false);
+      haptic?.notificationOccurred("success");
+      toast.success("ลงทะเบียนสำเร็จ — ส่งข้อมูลไปยังระบบเรียบร้อยแล้ว");
+      setPersonalJoinUrl(currentMeeting.joinUrl);
+      setIsRegistered(true);
+      setStatus("approved");
+    } catch (err: any) {
       setSubmitting(false);
       haptic?.notificationOccurred("error");
-      toast.error(identityResult.message);
-      return;
+      toast.error(err.message || "เกิดข้อผิดพลาดในการลงทะเบียน");
     }
-
-    // Step 2: Build Payload retaining ORIGINAL First Name & Last Name
-    const payload = buildZoomRegistrantPayload(
-      user.first_name || name.split(" ")[0],
-      user.last_name || name.split(" ").slice(1).join(" ") || "",
-      email,
-      phone ? { Phone: phone } : undefined
-    );
-
-    // Step 3: Submit to Zoom S2SO Registrants API
-    const zoomResponse = await mockSubmitZoomRegistrant(activeMeeting.id, payload);
-
-    setSubmitting(false);
-    haptic?.notificationOccurred("success");
-    toast.success("ลงทะเบียนสำเร็จ — ระบบได้สร้างลิงก์เข้าเรียนส่วนตัวให้คุณเรียบร้อยแล้ว");
-    setPersonalJoinUrl(zoomResponse.join_url);
-    setIsRegistered(true);
-    setStatus("approved");
   };
 
   const onSubmit = (e: React.FormEvent) => {
@@ -96,7 +105,7 @@ function UnifiedAppPage() {
 
   const handleJoinZoom = async () => {
     haptic?.impactOccurred("heavy");
-    await trackZoomJoin(user.id, activeMeeting.id);
+    await trackZoomJoin(user.id, currentMeeting.id);
     haptic?.notificationOccurred("success");
     openLink(personalJoinUrl);
   };
@@ -130,8 +139,8 @@ function UnifiedAppPage() {
         <CardHeader className="py-4">
           <div className="flex items-start justify-between">
             <div>
-              <CardTitle className="text-base">{activeMeeting.topic}</CardTitle>
-              <CardDescription className="text-xs">Hosted by {activeMeeting.host}</CardDescription>
+              <CardTitle className="text-base">{currentMeeting.topic}</CardTitle>
+              <CardDescription className="text-xs">Hosted by {currentMeeting.host}</CardDescription>
             </div>
             <Badge className="bg-emerald-500 hover:bg-emerald-500 text-[10px]">Live</Badge>
           </div>
@@ -139,11 +148,11 @@ function UnifiedAppPage() {
         <CardContent className="grid grid-cols-2 gap-3 text-xs pb-4">
           <div>
             <div className="text-muted-foreground">Starts</div>
-            <div className="font-medium">{new Date(activeMeeting.startTime).toLocaleString()}</div>
+            <div className="font-medium">{new Date(currentMeeting.startTime).toLocaleString()}</div>
           </div>
           <div>
             <div className="text-muted-foreground">Duration</div>
-            <div className="font-medium">{activeMeeting.durationMin} min</div>
+            <div className="font-medium">{currentMeeting.durationMin} min</div>
           </div>
         </CardContent>
       </Card>
@@ -270,11 +279,11 @@ function UnifiedAppPage() {
               <div className="space-y-2 rounded-md border border-border/50 p-4 bg-muted/20">
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">Meeting ID</span>
-                  <span className="font-mono font-semibold">{activeMeeting.id}</span>
+                  <span className="font-mono font-semibold">{currentMeeting.id}</span>
                 </div>
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">Passcode</span>
-                  <span className="font-mono font-semibold">{activeMeeting.passcode}</span>
+                  <span className="font-mono font-semibold">{currentMeeting.passcode}</span>
                 </div>
                 <Button className="mt-2 w-full text-xs" onClick={handleJoinZoom}>
                   Join Zoom meeting <ExternalLink className="h-3.5 w-3.5 ml-1" />
