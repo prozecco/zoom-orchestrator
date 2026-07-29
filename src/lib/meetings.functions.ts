@@ -222,12 +222,12 @@ export const testZoomAuth = createServerFn({ method: "POST" })
 
 export const getZoomEnvConfig = createServerFn({ method: "GET" }).handler(async () => {
   return {
-    accountId: process.env.ZOOM_ACCOUNT_ID ?? "Xmxl4CRXRLqrvr3WXlUqAw",
-    clientId: process.env.ZOOM_CLIENT_ID ?? "KJVgvj9TQHOT5oIBkl6Z7g",
-    clientSecret: process.env.ZOOM_CLIENT_SECRET ? `${process.env.ZOOM_CLIENT_SECRET.slice(0, 4)}...${process.env.ZOOM_CLIENT_SECRET.slice(-4)}` : "z8S2...z",
+    accountId: process.env.ZOOM_ACCOUNT_ID ?? "X0ADU72rToGb7hdnnIBkeg",
+    clientId: process.env.ZOOM_CLIENT_ID ?? "o9qDabC6RPapF8IUgz3Efw",
+    clientSecret: process.env.ZOOM_CLIENT_SECRET ? `${process.env.ZOOM_CLIENT_SECRET.slice(0, 4)}...${process.env.ZOOM_CLIENT_SECRET.slice(-4)}` : "4C06...ztv",
     meetingId: process.env.ZOOM_MEETING_ID ?? "85651598189",
-    regLink: process.env.ZOOM_REGISTRATION_LINK ?? "https://us06web.zoom.us/meeting/register/xHiSkLTMQLq0an5MdrWlZw",
-    webhookSecret: process.env.ZOOM_WEBHOOK_SECRET ?? "YYJPbMz0Q6GazVd_DeBMIQ",
+    regLink: process.env.ZOOM_REGISTRATION_LINK ?? "https://us05web.zoom.us/j/85651598189?pwd=xxJugOAf1uy1Amwlchy4ZbshgzvoYk.1",
+    webhookSecret: process.env.ZOOM_WEBHOOK_SECRET ?? "QG6XM_lQRq25ad8Up39jtg",
   };
 });
 

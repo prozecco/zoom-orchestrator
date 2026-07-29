@@ -17,14 +17,14 @@ export async function getZoomToken(custom?: { clientId?: string; clientSecret?: 
   let clientSecret = custom?.clientSecret?.trim();
   let accountId = custom?.accountId?.trim();
 
-  // Ignore mock placeholders or masked secrets to ensure fallback to process.env
+  // Ignore mock placeholders or masked secrets to ensure fallback to process.env or valid default
   if (!clientId || clientId === "KJVgvj9TQHOT5oIBkl6Z7g") clientId = undefined;
   if (!clientSecret || clientSecret === "z8S2uY85DqUFI2UdexFfd179MsBhcM6z" || clientSecret.includes("...")) clientSecret = undefined;
   if (!accountId || accountId === "Xmxl4CRXRLqrvr3WXlUqAw") accountId = undefined;
 
-  const finalClientId = (clientId || process.env.ZOOM_CLIENT_ID || "KJVgvj9TQHOT5oIBkl6Z7g").trim();
-  const finalClientSecret = (clientSecret || process.env.ZOOM_CLIENT_SECRET || "z8S2uY85DqUFI2UdexFfd179MsBhcM6z").trim();
-  const finalAccountId = (accountId || process.env.ZOOM_ACCOUNT_ID || "Xmxl4CRXRLqrvr3WXlUqAw").trim();
+  const finalClientId = (clientId || process.env.ZOOM_CLIENT_ID || "o9qDabC6RPapF8IUgz3Efw").trim();
+  const finalClientSecret = (clientSecret || process.env.ZOOM_CLIENT_SECRET || "4C06H56EsMmDjMShZVGwSs6SMOSZ5ztv").trim();
+  const finalAccountId = (accountId || process.env.ZOOM_ACCOUNT_ID || "X0ADU72rToGb7hdnnIBkeg").trim();
 
   // If cache is present and matches the requested credentials, reuse it
   if (

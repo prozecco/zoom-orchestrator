@@ -35,8 +35,9 @@ export const Route = createFileRoute("/api/public/zoom/webhook")({
       POST: async ({ request }) => {
         const secretToken =
           process.env.ZOOM_WEBHOOK_SECRET_TOKEN ||
+          process.env.ZOOM_WEBHOOK_SECRET ||
           process.env.ZOOM_CLIENT_SECRET ||
-          "zoom_default_webhook_secret";
+          "QG6XM_lQRq25ad8Up39jtg";
 
         let body: any;
         try {
