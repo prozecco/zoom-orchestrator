@@ -6,38 +6,22 @@ import { isAdminId } from "./admin-config";
 
 export const getActiveMeeting = createServerFn({ method: "GET" }).handler(async () => {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data } = await supabaseAdmin
+  // True source of truth: the row flagged is_active in the DB (set by Zoom sync/webhook).
+  // No hardcoded fallback — if nothing is active, callers must show "no active meeting".
+  const { data, error } = await supabaseAdmin
     .from("meetings")
     .select("*")
     .eq("is_active", true)
+    .order("synced_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
 
-  // If no active meeting found in DB yet, fallback to inserting default meeting
-  if (!data) {
-    const defaultRow = {
-      id: "85651598189",
-      zoom_id: "85651598189",
-      topic: "ＳＵＮＣＬＯＵＤＳ １７６６",
-      host_email: "sunclouds-jr@outlook.com",
-      start_time: new Date().toISOString(),
-      duration_min: 1440,
-      join_url: "https://us05web.zoom.us/j/85651598189?pwd=xxJugOAf1uy1Amwlchy4ZbshgzvoYk.1",
-      passcode: "1766",
-      status: "started",
-      is_active: true,
-      capacity: 100,
-      raw: { mode: "default_fallback" },
-      synced_at: new Date().toISOString(),
-    };
-    const { data: inserted } = await supabaseAdmin
-      .from("meetings")
-      .upsert(defaultRow as never, { onConflict: "zoom_id" })
-      .select()
-      .maybeSingle();
-    return inserted || defaultRow;
+  if (error) {
+    console.error("[meetings.functions] getActiveMeeting error:", error);
+    return null;
   }
 
-  return data;
+  return data ?? null;
 });
 
 export const listMeetings = createServerFn({ method: "GET" }).handler(async () => {
@@ -47,26 +31,8 @@ export const listMeetings = createServerFn({ method: "GET" }).handler(async () =
     .select("*")
     .order("start_time", { ascending: true, nullsFirst: false });
   if (error) throw new Error(error.message);
-  
-  if (!data || data.length === 0) {
-    const defaultRow = {
-      id: "85651598189",
-      zoom_id: "85651598189",
-      topic: "ＳＵＮＣＬＯＵＤＳ １７６６",
-      host_email: "sunclouds-jr@outlook.com",
-      start_time: new Date().toISOString(),
-      duration_min: 1440,
-      join_url: "https://us05web.zoom.us/j/85651598189?pwd=xxJugOAf1uy1Amwlchy4ZbshgzvoYk.1",
-      passcode: "1766",
-      status: "started",
-      is_active: true,
-      capacity: 100,
-      raw: { mode: "default_fallback" },
-      synced_at: new Date().toISOString(),
-    };
-    await supabaseAdmin.from("meetings").upsert(defaultRow as never, { onConflict: "zoom_id" });
-    return [defaultRow];
-  }
+
+
 
   return data;
 });
