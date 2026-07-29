@@ -46,11 +46,12 @@ export const groupedRegistrants = createServerFn({ method: "GET" }).handler(asyn
   return groups;
 });
 
-const ByTgInput = z.object({ telegramId: z.number() });
+const ByTgInput = z.object({ telegramId: z.number().optional().nullable() });
 
 export const getMyRegistration = createServerFn({ method: "GET" })
-  .validator((raw) => ByTgInput.parse(raw))
+  .validator((raw) => ByTgInput.parse(raw ?? {}))
   .handler(async ({ data }) => {
+    if (!data?.telegramId) return null;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: rows, error } = await supabaseAdmin
       .from("registrants")
