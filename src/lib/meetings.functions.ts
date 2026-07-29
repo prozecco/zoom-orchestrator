@@ -32,12 +32,12 @@ const SyncInput = z.object({
 });
 
 export const syncActiveMeeting = createServerFn({ method: "POST" })
-  .validator((raw) => SyncInput.parse(raw))
+  .validator((raw) => SyncInput.parse(raw ?? {}))
   .handler(async ({ data }) => {
-    if (data.actorTelegramId && !isAdminId(data.actorTelegramId)) {
+    if (data?.actorTelegramId && !isAdminId(data.actorTelegramId)) {
       throw new Error("Not authorized");
     }
-    const zoomId = data.meetingId ?? process.env.ZOOM_MEETING_ID;
+    const zoomId = data?.meetingId ?? process.env.ZOOM_MEETING_ID;
     if (!zoomId) throw new Error("ZOOM_MEETING_ID is not configured");
 
     const { fetchZoomMeeting } = await import("./zoom.server");

@@ -25,7 +25,7 @@ function AdminHome() {
 
   // Direct Sync Mutation
   const syncMutation = useMutation({
-    mutationFn: () => syncActiveMeeting({}),
+    mutationFn: () => syncActiveMeeting({ data: {} }),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["activeMeeting"] });
       queryClient.invalidateQueries({ queryKey: ["meetings"] });
