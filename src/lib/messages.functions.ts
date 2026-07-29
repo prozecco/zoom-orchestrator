@@ -74,10 +74,20 @@ export const listThreadMessages = createServerFn({ method: "GET" })
 export const listApprovedRegistrants = createServerFn({ method: "GET" })
   .validator((data: unknown) => z.object({ meetingId: z.string() }).parse(data))
   .handler(async ({ data }) => {
+    // Resolve the meeting first so we can match registrants stored by either
+    // the meetings.id (uuid) or the zoom_id, and never leak other meetings' people.
+    const { data: meeting } = await supabaseAdmin
+      .from("meetings")
+      .select("id, zoom_id")
+      .or(`id.eq.${data.meetingId},zoom_id.eq.${data.meetingId}`)
+      .maybeSingle();
+
+    const keys = [meeting?.id, meeting?.zoom_id, data.meetingId].filter(Boolean) as string[];
+
     const { data: list, error } = await supabaseAdmin
       .from("registrants")
       .select("*")
-      .eq("meeting_id", data.meetingId)
+      .in("meeting_id", Array.from(new Set(keys)))
       .in("status", ["approved", "attended"])
       .order("name", { ascending: true });
 

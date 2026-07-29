@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { Shield, LayoutDashboard, Users, Radio, Settings, ArrowLeft } from "lucide-react";
+import { Shield, LayoutDashboard, Users, Radio, Settings, ArrowLeft, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTelegram } from "@/hooks/useTelegram";
 
@@ -15,6 +15,8 @@ const tabs: { to: string; label: string; icon: any; exact?: boolean }[] = [
   { to: "/admin", label: "Dashboard", icon: LayoutDashboard, exact: true },
   { to: "/admin/registrants", label: "Registrants", icon: Users },
   { to: "/admin/live", label: "Live", icon: Radio },
+  { to: "/admin/chat", label: "Chat", icon: MessageSquare },
+
   { to: "/admin/settings", label: "Settings", icon: Settings },
 ];
 
