@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,10 +12,10 @@ import { RegistrantProfileSheet } from "@/components/admin/RegistrantProfile";
 import { MemberIdConfigDialog } from "@/components/admin/MemberIdConfigDialog";
 import { AttendanceManagementSheet } from "@/components/admin/AttendanceManagementSheet";
 import type { Registrant } from "@/lib/mock-data";
-import { listRegistrants } from "@/lib/registrants.functions";
+import { listRegistrants, updateRegistrantStatus, bulkUpdateStatus } from "@/lib/registrants.functions";
 import { getActiveMeeting } from "@/lib/meetings.functions";
 import { formatBangkokRegistrationTime } from "@/lib/time-formatter";
-import { Search, Hash, Clock, Smartphone, Globe, Check, X, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Search, Hash, Clock, Smartphone, Globe, Check, X, AlertTriangle, CheckCircle2, UserCheck, UserX } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useTelegramViewer } from "@/hooks/useTelegramViewer";
@@ -79,8 +79,10 @@ const filterChips = [
 function RegistrantsPage() {
   const listRegs = useServerFn(listRegistrants);
   const getActive = useServerFn(getActiveMeeting);
+  const updateStatusFn = useServerFn(updateRegistrantStatus);
+  const bulkUpdateStatusFn = useServerFn(bulkUpdateStatus);
   
-  const { telegramId, user } = useTelegramViewer();
+  const { telegramId } = useTelegramViewer();
   const qc = useQueryClient();
   const [q, setQ] = useState("");
   const [activeFilter, setActiveFilter] = useState("all-pending");
@@ -91,6 +93,43 @@ function RegistrantsPage() {
   const registrantsQuery = useQuery({ queryKey: ["registrants"], queryFn: () => listRegs(), refetchInterval: 5000 });
   const activeMeetingQuery = useQuery({ queryKey: ["active-meeting"], queryFn: () => getActive(), refetchInterval: 15000 });
   const activeMeeting = activeMeetingQuery.data;
+
+  // Single approval/denial mutation
+  const updateMutation = useMutation({
+    mutationFn: (params: { id: string; status: "approved" | "denied" | "pending" | "on_hold" }) =>
+      updateStatusFn({ data: params }),
+    onSuccess: (_, variables) => {
+      qc.invalidateQueries({ queryKey: ["registrants"] });
+      qc.invalidateQueries({ queryKey: ["approvedRegistrants"] });
+      toast.success(
+        variables.status === "approved"
+          ? "อนุมัติผู้ใช้เรียบร้อยแล้ว ✅"
+          : "ปฏิเสธการลงทะเบียนเรียบร้อย ❌"
+      );
+    },
+    onError: (err: any) => {
+      toast.error(`เกิดข้อผิดพลาด: ${err.message}`);
+    },
+  });
+
+  // Bulk approval/denial mutation
+  const bulkMutation = useMutation({
+    mutationFn: (params: { ids: string[]; status: "approved" | "denied" }) =>
+      bulkUpdateStatusFn({ data: params }),
+    onSuccess: (res, variables) => {
+      qc.invalidateQueries({ queryKey: ["registrants"] });
+      qc.invalidateQueries({ queryKey: ["approvedRegistrants"] });
+      setSelectedIds(new Set());
+      toast.success(
+        variables.status === "approved"
+          ? `อนุมัติผู้ใช้ทั้ง ${res.updated} คนเรียบร้อยแล้ว ✅`
+          : `ปฏิเสธผู้ใช้ทั้ง ${res.updated} คนเรียบร้อย ❌`
+      );
+    },
+    onError: (err: any) => {
+      toast.error(`เกิดข้อผิดพลาดในการอนุมัติกลุ่ม: ${err.message}`);
+    },
+  });
 
   const allLive: (Registrant & { meeting_id: string | null })[] = (registrantsQuery.data ?? []).map((dbR) => ({
     id: dbR.id,
@@ -107,9 +146,11 @@ function RegistrantsPage() {
   }));
 
   const registrantsList = activeMeetingOnly && activeMeeting
-    ? allLive.filter((r) => r.meeting_id === activeMeeting.id)
+    ? allLive.filter((r) => r.meeting_id === activeMeeting.id || r.meeting_id === activeMeeting.zoom_id)
     : allLive;
-  const outOfSyncCount = activeMeeting ? allLive.filter((r) => r.meeting_id !== activeMeeting.id).length : 0;
+  const outOfSyncCount = activeMeeting
+    ? allLive.filter((r) => r.meeting_id !== activeMeeting.id && r.meeting_id !== activeMeeting.zoom_id).length
+    : 0;
 
   // Modals for Member ID Settings and Attendance Management
   const [memberIdConfigOpen, setMemberIdConfigOpen] = useState(false);
@@ -145,16 +186,16 @@ function RegistrantsPage() {
     denied: registrantsList.filter((r) => r.status === "denied" || r.status === "rejected" || r.status === "blacklisted").length,
   };
 
-  const handleQuickApprove = (name: string) => {
-    toast.success(`อนุมัติ ${name} เรียบร้อยแล้ว (เจนเนอเรต Member ID และบันทึกลงฐานข้อมูล)`);
+  const handleQuickApprove = (id: string, name: string) => {
+    updateMutation.mutate({ id, status: "approved" });
   };
 
-  const handleQuickDeny = (name: string) => {
-    toast.error(`ปฏิเสธ ${name} เรียบร้อยแล้ว`);
+  const handleQuickDeny = (id: string, name: string) => {
+    updateMutation.mutate({ id, status: "denied" });
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-20">
       {/* Top Controls Bar with Member ID Config & Attendance Buttons */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-2">
@@ -361,17 +402,19 @@ function RegistrantsPage() {
                 <div className="flex items-center gap-2 ml-4 shrink-0" onClick={(e) => e.stopPropagation()}>
                   <Button
                     size="sm"
-                    onClick={() => handleQuickApprove(r.name)}
+                    disabled={updateMutation.isPending}
+                    onClick={() => handleQuickApprove(r.id, r.name)}
                     className="h-8 w-8 p-0 rounded-full bg-emerald-500/20 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/40 transition-all"
-                    title="Approve & Generate Member ID"
+                    title="Approve User"
                   >
                     <Check className="h-4 w-4" />
                   </Button>
                   <Button
                     size="sm"
-                    onClick={() => handleQuickDeny(r.name)}
+                    disabled={updateMutation.isPending}
+                    onClick={() => handleQuickDeny(r.id, r.name)}
                     className="h-8 w-8 p-0 rounded-full bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-white border border-red-500/40 transition-all"
-                    title="Deny"
+                    title="Deny User"
                   >
                     <X className="h-4 w-4" />
                   </Button>
@@ -387,6 +430,31 @@ function RegistrantsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Floating Bulk Actions Bar */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-slate-900/95 border border-primary/40 px-5 py-3 rounded-full shadow-2xl backdrop-blur-md">
+          <span className="text-xs font-semibold text-white mr-1">
+            {selectedIds.size} {selectedIds.size === 1 ? "user" : "users"} selected
+          </span>
+          <Button
+            size="sm"
+            disabled={bulkMutation.isPending}
+            onClick={() => bulkMutation.mutate({ ids: Array.from(selectedIds), status: "approved" })}
+            className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs h-8 rounded-full gap-1.5"
+          >
+            <UserCheck className="h-3.5 w-3.5" /> Approve Selected
+          </Button>
+          <Button
+            size="sm"
+            disabled={bulkMutation.isPending}
+            onClick={() => bulkMutation.mutate({ ids: Array.from(selectedIds), status: "denied" })}
+            className="bg-red-600 hover:bg-red-500 text-white text-xs h-8 rounded-full gap-1.5"
+          >
+            <UserX className="h-3.5 w-3.5" /> Deny Selected
+          </Button>
+        </div>
+      )}
 
       {/* Registrant Profile Sheet */}
       <RegistrantProfileSheet 

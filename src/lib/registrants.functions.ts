@@ -36,7 +36,15 @@ export const submitRegistration = createServerFn({ method: "POST" })
     const telegramId = data.telegramId || null;
     const telegramUser = data.telegramUser || null;
 
-    // 2. Upsert registrant into Supabase
+    // Check if already registered to avoid duplicate Telegram notifications
+    const { data: existingReg } = await supabaseAdmin
+      .from("registrants")
+      .select("id")
+      .eq("meeting_id", activeMeeting.id)
+      .eq("email", email)
+      .maybeSingle();
+
+    // 2. Upsert registrant into Supabase with 'pending' status for Admin approval
     const { data: inserted, error } = await supabaseAdmin
       .from("registrants")
       .upsert(
@@ -47,7 +55,7 @@ export const submitRegistration = createServerFn({ method: "POST" })
           phone,
           telegram_id: telegramId,
           telegram_user: telegramUser,
-          status: "approved", // Auto-approved for Mini App users
+          status: "pending", // Requires Admin Approval
           registered_at: new Date().toISOString(),
         } as never,
         { onConflict: "email,meeting_id" }
@@ -60,17 +68,19 @@ export const submitRegistration = createServerFn({ method: "POST" })
       throw new Error(`Failed to save registration: ${error.message}`);
     }
 
-    // 3. Trigger Telegram Notification to Admin
-    await notifyAdminRegistration({
-      name,
-      email,
-      phone,
-      telegramId,
-      telegramHandle: telegramUser,
-      source: "telegram_mini_app",
-      meetingTopic: activeMeeting.topic,
-      registeredAt: new Date().toISOString(),
-    });
+    // 3. Trigger Telegram Notification ONLY if this is a NEW registration (prevents duplicates)
+    if (!existingReg) {
+      await notifyAdminRegistration({
+        name,
+        email,
+        phone,
+        telegramId,
+        telegramHandle: telegramUser,
+        source: "telegram_mini_app",
+        meetingTopic: activeMeeting.topic,
+        registeredAt: new Date().toISOString(),
+      });
+    }
 
     return inserted;
   });
@@ -128,19 +138,19 @@ export const listRegistrants = createServerFn({ method: "GET" })
   });
 
 /**
- * Updates a registrant's status (approved, denied, on_hold, etc.)
+ * Updates a single registrant's status (approved, denied, on_hold, etc.)
  */
 export const updateRegistrantStatus = createServerFn({ method: "POST" })
   .validator((data: unknown) =>
     z.object({
       id: z.string(),
-      status: z.enum(["pending", "approved", "denied", "on_hold", "cancelled", "attended"]),
+      status: z.enum(["pending", "approved", "denied", "on_hold", "cancelled", "attended", "blacklisted"]),
     }).parse(data)
   )
   .handler(async ({ data }) => {
     const { data: updated, error } = await supabaseAdmin
       .from("registrants")
-      .update({ status: data.status } as never)
+      .update({ status: data.status, updated_at: new Date().toISOString() } as never)
       .eq("id", data.id)
       .select()
       .single();
@@ -151,4 +161,63 @@ export const updateRegistrantStatus = createServerFn({ method: "POST" })
     }
 
     return updated;
+  });
+
+/**
+ * Bulk updates multiple registrants' status
+ */
+export const bulkUpdateStatus = createServerFn({ method: "POST" })
+  .validator((data: unknown) =>
+    z.object({
+      ids: z.array(z.string()),
+      status: z.enum(["pending", "approved", "denied", "on_hold", "cancelled", "attended", "blacklisted"]),
+    }).parse(data)
+  )
+  .handler(async ({ data }) => {
+    if (!data.ids.length) return { updated: 0 };
+
+    const { error } = await supabaseAdmin
+      .from("registrants")
+      .update({ status: data.status, updated_at: new Date().toISOString() } as never)
+      .in("id", data.ids);
+
+    if (error) {
+      console.error("[registrants.functions] Error bulk updating status:", error);
+      throw new Error(error.message);
+    }
+
+    return { updated: data.ids.length };
+  });
+
+/**
+ * Saves a behavior note for a registrant
+ */
+export const saveRegistrantNote = createServerFn({ method: "POST" })
+  .validator((data: unknown) =>
+    z.object({
+      registrantId: z.string(),
+      authorTgId: z.number().nullable().optional(),
+      authorName: z.string(),
+      body: z.string().min(1, "Note cannot be empty"),
+    }).parse(data)
+  )
+  .handler(async ({ data }) => {
+    const { data: note, error } = await supabaseAdmin
+      .from("registrant_notes")
+      .insert({
+        registrant_id: data.registrantId,
+        author_tg_id: data.authorTgId || null,
+        author_name: data.authorName,
+        body: data.body,
+        created_at: new Date().toISOString(),
+      } as never)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("[registrants.functions] Error saving note:", error);
+      throw new Error(error.message);
+    }
+
+    return note;
   });

@@ -83,26 +83,36 @@ export const Route = createFileRoute("/api/public/zoom/webhook")({
                 .maybeSingle();
 
               if (meetingObj) {
+                // Check if user is already registered in DB for this meeting
+                const { data: existingReg } = await supabaseAdmin
+                  .from("registrants")
+                  .select("id")
+                  .eq("meeting_id", meetingObj.id)
+                  .eq("email", email.toLowerCase())
+                  .maybeSingle();
+
                 await supabaseAdmin.from("registrants").upsert({
                   meeting_id: meetingObj.id,
                   name,
                   email: email.toLowerCase(),
                   phone,
                   zoom_registrant_id: registrant.id || registrant.registrant_id || null,
-                  status: "approved", // Registered via Zoom portal
+                  status: existingReg ? undefined : "pending", // Default to pending for approval if new
                   registered_at: new Date().toISOString(),
                 } as never, { onConflict: "email,meeting_id" });
-              }
 
-              // Send Telegram Notification to Admin
-              await notifyAdminRegistration({
-                name,
-                email,
-                phone,
-                source: "zoom_web_portal",
-                meetingTopic: topic,
-                registeredAt: new Date().toISOString(),
-              });
+                // ONLY send Telegram notification if this is a NEW registration (prevents duplicate alerts)
+                if (!existingReg) {
+                  await notifyAdminRegistration({
+                    name,
+                    email,
+                    phone,
+                    source: "zoom_web_portal",
+                    meetingTopic: topic,
+                    registeredAt: new Date().toISOString(),
+                  });
+                }
+              }
             }
           }
 

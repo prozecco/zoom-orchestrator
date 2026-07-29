@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useQueryClient, useMutation } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,9 +10,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { type Registrant } from "@/lib/mock-data";
+import { updateRegistrantStatus, saveRegistrantNote } from "@/lib/registrants.functions";
 import { formatBangkokRegistrationTime } from "@/lib/time-formatter";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Edit2, Trash2, Plus, AlertCircle, History, Smartphone, Globe, Clock } from "lucide-react";
+import { Edit2, Trash2, Plus, AlertCircle, History, Smartphone, Globe, Clock, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -22,6 +25,7 @@ interface Props {
 
 const statusOptions = [
   { value: "pending", label: "Pending ⏳", color: "text-yellow-500" },
+  { value: "on_hold", label: "On Hold ⏸", color: "text-amber-500" },
   { value: "approved", label: "Approved ✅", color: "text-green-500" },
   { value: "denied", label: "Denied ❌", color: "text-red-500" },
   { value: "cancelled", label: "Cancelled ⚪", color: "text-gray-400" },
@@ -30,6 +34,12 @@ const statusOptions = [
 
 export function RegistrantProfileSheet({ registrant, open, onOpenChange }: Props) {
   if (!registrant) return null;
+
+  const updateStatusFn = useServerFn(updateRegistrantStatus);
+  const saveNoteFn = useServerFn(saveRegistrantNote);
+  const qc = useQueryClient();
+
+  const [noteBody, setNoteBody] = useState("");
 
   // Metadata Edit Modal States
   const [metaOpen, setMetaOpen] = useState(false);
@@ -44,7 +54,39 @@ export function RegistrantProfileSheet({ registrant, open, onOpenChange }: Props
   const [historyZoomName, setHistoryZoomName] = useState(registrant.name);
   const [historyStatus, setHistoryStatus] = useState(registrant.status);
 
-  // Save changes
+  // Status Change Mutation
+  const statusMutation = useMutation({
+    mutationFn: (newStatus: any) =>
+      updateStatusFn({ data: { id: registrant.id, status: newStatus } }),
+    onSuccess: (_, newStatus) => {
+      qc.invalidateQueries({ queryKey: ["registrants"] });
+      qc.invalidateQueries({ queryKey: ["approvedRegistrants"] });
+      toast.success(`อัปเดตสถานะเป็น "${newStatus}" เรียบร้อยแล้ว`);
+    },
+    onError: (err: any) => {
+      toast.error(`ไม่สามารถเปลี่ยนสถานะได้: ${err.message}`);
+    },
+  });
+
+  // Save Note Mutation
+  const noteMutation = useMutation({
+    mutationFn: (body: string) =>
+      saveNoteFn({
+        data: {
+          registrantId: registrant.id,
+          authorName: "Admin",
+          body,
+        },
+      }),
+    onSuccess: () => {
+      setNoteBody("");
+      toast.success("บันทึกบันทึกข้อความพฤติกรรมเรียบร้อยแล้ว");
+    },
+    onError: (err: any) => {
+      toast.error(`ไม่สามารถบันทึกข้อความได้: ${err.message}`);
+    },
+  });
+
   const saveMetadata = () => {
     toast.success("Linked metadata updated successfully!");
     setMetaOpen(false);
@@ -117,8 +159,15 @@ export function RegistrantProfileSheet({ registrant, open, onOpenChange }: Props
 
             {/* Current Status Dropdown */}
             <div className="space-y-2 rounded-lg border border-border/50 bg-muted/10 p-4">
-              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Current Status</div>
-              <Select defaultValue={registrant.status}>
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Current Status</div>
+                {statusMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />}
+              </div>
+              <Select
+                value={registrant.status}
+                onValueChange={(val) => statusMutation.mutate(val)}
+                disabled={statusMutation.isPending}
+              >
                 <SelectTrigger className="w-full bg-background border-border/50 focus:ring-0">
                   <SelectValue placeholder="Select status" />
                 </SelectTrigger>
@@ -167,9 +216,15 @@ export function RegistrantProfileSheet({ registrant, open, onOpenChange }: Props
               <Textarea 
                 className="resize-none h-24 bg-background border-border/50 text-xs focus:ring-0" 
                 placeholder="Enter notes..."
+                value={noteBody}
+                onChange={(e) => setNoteBody(e.target.value)}
               />
-              <Button className="w-full bg-primary/20 text-primary hover:bg-primary/30 border border-primary/50 text-xs py-1.5" onClick={() => toast.success("Behavior notes saved.")}>
-                Save Notes
+              <Button
+                disabled={noteMutation.isPending || !noteBody.trim()}
+                className="w-full bg-primary/20 text-primary hover:bg-primary/30 border border-primary/50 text-xs py-1.5"
+                onClick={() => noteMutation.mutate(noteBody.trim())}
+              >
+                {noteMutation.isPending ? "Saving..." : "Save Notes"}
               </Button>
             </div>
 

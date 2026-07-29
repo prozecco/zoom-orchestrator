@@ -78,6 +78,7 @@ export const listApprovedRegistrants = createServerFn({ method: "GET" })
       .from("registrants")
       .select("*")
       .eq("meeting_id", data.meetingId)
+      .in("status", ["approved", "attended"])
       .order("name", { ascending: true });
 
     if (error) {
