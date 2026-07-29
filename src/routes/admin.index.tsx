@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { activeMeeting as mockActiveMeeting, registrants as mockRegistrants, schedule as mockSchedule, stats as mockStats } from "@/lib/mock-data";
-import { getActiveMeeting, listMeetings, syncActiveMeeting } from "@/lib/meetings.functions";
+import { getActiveMeeting, listMeetings, syncActiveMeeting, getZoomEnvConfig } from "@/lib/meetings.functions";
 import { listRegistrants } from "@/lib/registrants.functions";
 import { Calendar, Radio, UserPlus, Video, Copy, ExternalLink, Users, ArrowRight, Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -21,6 +21,7 @@ function AdminHome() {
   const activeQuery = useQuery({ queryKey: ["activeMeeting"], queryFn: () => getActiveMeeting(), refetchInterval: 5000 });
   const meetingsQuery = useQuery({ queryKey: ["meetings"], queryFn: () => listMeetings(), refetchInterval: 5000 });
   const registrantsQuery = useQuery({ queryKey: ["registrants"], queryFn: () => listRegistrants(), refetchInterval: 5000 });
+  const envConfigQuery = useQuery({ queryKey: ["zoomEnvConfig"], queryFn: () => getZoomEnvConfig() });
 
   // Direct Sync Mutation
   const syncMutation = useMutation({
@@ -37,14 +38,20 @@ function AdminHome() {
     }
   });
 
-  // Background Auto-sync on load if no active session
+  // Background Auto-sync on load if no active session OR if active session ID is stale
   const [hasAutoSynced, setHasAutoSynced] = useState(false);
   useEffect(() => {
-    if (!activeQuery.isLoading && !activeQuery.data && !hasAutoSynced) {
-      setHasAutoSynced(true);
-      syncMutation.mutate();
+    const configuredMeetingId = envConfigQuery.data?.meetingId;
+    const dbActiveMeetingId = activeQuery.data?.zoom_id;
+
+    if (!activeQuery.isLoading && !envConfigQuery.isLoading && !hasAutoSynced) {
+      const needsSync = !activeQuery.data || (configuredMeetingId && dbActiveMeetingId !== configuredMeetingId);
+      if (needsSync) {
+        setHasAutoSynced(true);
+        syncMutation.mutate();
+      }
     }
-  }, [activeQuery.isLoading, activeQuery.data, hasAutoSynced]);
+  }, [activeQuery.isLoading, envConfigQuery.isLoading, activeQuery.data, envConfigQuery.data, hasAutoSynced]);
 
   const activeMeeting = activeQuery.data ? {
     id: activeQuery.data.zoom_id,

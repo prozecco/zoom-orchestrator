@@ -1,28 +1,53 @@
 // Zoom Server-to-Server OAuth + Meetings API.
 // Server-only: only import from *.functions.ts handlers or other .server.ts files.
 
-type ZoomTokenCache = { token: string; expiresAt: number };
+type ZoomTokenCache = { 
+  token: string; 
+  expiresAt: number;
+  clientId: string;
+  clientSecret: string;
+  accountId: string;
+};
 let cache: ZoomTokenCache | null = null;
 
 export async function getZoomToken(custom?: { clientId?: string; clientSecret?: string; accountId?: string }): Promise<string> {
   const now = Date.now();
-  if (!custom && cache && cache.expiresAt > now + 30_000) return cache.token;
 
-  const clientId = (custom?.clientId || process.env.ZOOM_CLIENT_ID || "KJVgvj9TQHOT5oIBkl6Z7g").trim();
-  const clientSecret = (custom?.clientSecret || process.env.ZOOM_CLIENT_SECRET || "z8S2uY85DqUFI2UdexFfd179MsBhcM6z").trim();
-  const accountId = (custom?.accountId || process.env.ZOOM_ACCOUNT_ID || "Xmxl4CRXRLqrvr3WXlUqAw").trim();
+  let clientId = custom?.clientId?.trim();
+  let clientSecret = custom?.clientSecret?.trim();
+  let accountId = custom?.accountId?.trim();
 
-  if (!clientId || !clientSecret || !accountId) {
-    throw new Error(`Zoom credentials incomplete (ClientID: ${clientId ? "OK" : "MISSING"}, ClientSecret: ${clientSecret ? "OK" : "MISSING"}, AccountID: ${accountId ? "OK" : "MISSING"})`);
+  // Ignore mock placeholders or masked secrets to ensure fallback to process.env
+  if (!clientId || clientId === "KJVgvj9TQHOT5oIBkl6Z7g") clientId = undefined;
+  if (!clientSecret || clientSecret === "z8S2uY85DqUFI2UdexFfd179MsBhcM6z" || clientSecret.includes("...")) clientSecret = undefined;
+  if (!accountId || accountId === "Xmxl4CRXRLqrvr3WXlUqAw") accountId = undefined;
+
+  const finalClientId = (clientId || process.env.ZOOM_CLIENT_ID || "KJVgvj9TQHOT5oIBkl6Z7g").trim();
+  const finalClientSecret = (clientSecret || process.env.ZOOM_CLIENT_SECRET || "z8S2uY85DqUFI2UdexFfd179MsBhcM6z").trim();
+  const finalAccountId = (accountId || process.env.ZOOM_ACCOUNT_ID || "Xmxl4CRXRLqrvr3WXlUqAw").trim();
+
+  // If cache is present and matches the requested credentials, reuse it
+  if (
+    cache &&
+    cache.expiresAt > now + 30_000 &&
+    cache.clientId === finalClientId &&
+    cache.clientSecret === finalClientSecret &&
+    cache.accountId === finalAccountId
+  ) {
+    return cache.token;
+  }
+
+  if (!finalClientId || !finalClientSecret || !finalAccountId) {
+    throw new Error(`Zoom credentials incomplete (ClientID: ${finalClientId ? "OK" : "MISSING"}, ClientSecret: ${finalClientSecret ? "OK" : "MISSING"}, AccountID: ${finalAccountId ? "OK" : "MISSING"})`);
   }
 
   const basic = typeof Buffer !== "undefined"
-    ? Buffer.from(`${clientId}:${clientSecret}`).toString("base64")
-    : btoa(`${clientId}:${clientSecret}`);
+    ? Buffer.from(`${finalClientId}:${finalClientSecret}`).toString("base64")
+    : btoa(`${finalClientId}:${finalClientSecret}`);
 
   const body = new URLSearchParams({
     grant_type: "account_credentials",
-    account_id: accountId,
+    account_id: finalAccountId,
   });
 
   const res = await fetch("https://zoom.us/oauth/token", {
@@ -41,9 +66,13 @@ export async function getZoomToken(custom?: { clientId?: string; clientSecret?: 
   }
 
   const data = (await res.json()) as { access_token: string; expires_in: number };
-  if (!custom) {
-    cache = { token: data.access_token, expiresAt: now + data.expires_in * 1000 };
-  }
+  cache = { 
+    token: data.access_token, 
+    expiresAt: now + data.expires_in * 1000,
+    clientId: finalClientId,
+    clientSecret: finalClientSecret,
+    accountId: finalAccountId
+  };
   return data.access_token;
 }
 

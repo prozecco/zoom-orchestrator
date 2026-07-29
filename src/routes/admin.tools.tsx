@@ -41,6 +41,7 @@ function ToolsPage() {
     if (envConfigQuery.data) {
       setZoomAccountId(envConfigQuery.data.accountId);
       setZoomClientId(envConfigQuery.data.clientId);
+      setZoomClientSecret(envConfigQuery.data.clientSecret);
       setZoomDefaultMeetingId(envConfigQuery.data.meetingId);
       setZoomRegLink(envConfigQuery.data.regLink);
       setZoomWebhookSecret(envConfigQuery.data.webhookSecret);
