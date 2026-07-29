@@ -15,6 +15,7 @@ import { useTelegram } from "@/hooks/useTelegram";
 import { useLiveChat } from "@/hooks/useLiveChat";
 import { getMeetingParticipants } from "@/lib/telegram-sync";
 import { getActiveMeeting } from "@/lib/meetings.functions";
+import { listApprovedRegistrants } from "@/lib/messages.functions";
 
 export const Route = createFileRoute("/app/chat")({
   ssr: false,
@@ -83,26 +84,26 @@ function LiveChatPage() {
     return () => clearInterval(interval);
   }, []);
 
-  // Load participants
+  // Load approved participants from Supabase DB
+  const listApprovedFn = useServerFn(listApprovedRegistrants);
   useEffect(() => {
     async function loadParticipants() {
-      const activeZoomId = activeMeetingQuery.data?.zoom_id ?? "85651598189";
-      const fetched = await getMeetingParticipants(activeZoomId, user.id);
-      setParticipants(fetched.length > 0 ? fetched : [
-        {
-          telegram_id: 9999,
-          status: "joined",
-          user: { first_name: "Elena (Host)", last_name: "Ross", username: "elenaross", photo_url: null }
-        },
-        {
-          telegram_id: 1111,
-          status: "joined",
-          user: { first_name: "Bruno", last_name: "Silva", username: "brunos", photo_url: null }
-        }
-      ]);
+      if (!activeMeetingQuery.data?.id) return;
+      try {
+        const list = await listApprovedFn({ data: { meetingId: activeMeetingQuery.data.id } });
+        const mapped = list.map((reg: any) => ({
+          id: reg.id,
+          telegram_id: reg.telegram_id || reg.id,
+          name: reg.name,
+          username: reg.telegram_user ? reg.telegram_user.replace(/^@/, "") : reg.email,
+        }));
+        setParticipants(mapped);
+      } catch (err) {
+        console.error("[app.chat] Failed loading participants:", err);
+      }
     }
     loadParticipants();
-  }, [user.id]);
+  }, [activeMeetingQuery.data?.id]);
 
   const handleSend = (media?: { url: string; type: string }) => {
     if (!media && !text.trim()) return;
@@ -385,46 +386,60 @@ function LiveChatPage() {
               /* Directory listing of meeting members to start chat */
               <ScrollArea className="h-full">
                 <div className="space-y-2">
-                  {participants.map((p) => (
-                    <div
-                      key={p.telegram_id}
-                      onClick={() => openPrivateMeetingChat(p.telegram_id, p.user.first_name)}
-                      className="flex items-center justify-between p-3 rounded-lg border border-border/50 hover:bg-muted/20 cursor-pointer transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-9 w-9 bg-primary/20 text-primary font-bold">
-                          <AvatarFallback>{p.user.first_name.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <div className="text-sm font-semibold">{p.user.first_name}</div>
-                          <div className="text-[10px] text-muted-foreground">@{p.user.username || "username"}</div>
+                  {participants.length > 0 ? (
+                    participants.map((p) => (
+                      <div
+                        key={p.id}
+                        onClick={() => openPrivateMeetingChat(p.telegram_id, p.name)}
+                        className="flex items-center justify-between p-3 rounded-lg border border-border/50 hover:bg-muted/20 cursor-pointer transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-9 w-9 bg-primary/20 text-primary font-bold">
+                            <AvatarFallback>{p.name.charAt(0).toUpperCase()}</AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <div className="text-sm font-semibold">{p.name}</div>
+                            <div className="text-[10px] text-muted-foreground">@{p.username}</div>
+                          </div>
                         </div>
+                        <Button size="sm" variant="secondary" className="text-[10px] h-7 px-2">Chat</Button>
                       </div>
-                      <Button size="sm" variant="secondary" className="text-[10px] h-7 px-2">Chat</Button>
+                    ))
+                  ) : (
+                    <div className="p-6 text-center text-xs text-muted-foreground">
+                      No approved members in this meeting yet. Approve users in the Admin Dashboard.
                     </div>
-                  ))}
+                  )}
                 </div>
               </ScrollArea>
             ) : (
               /* Active 1:1 In-meeting chats list */
               <ScrollArea className="h-full">
                 <div className="space-y-2">
-                  {/* Simulate existing private 1:1 room */}
-                  <div
-                    onClick={() => openPrivateMeetingChat(1111, "Bruno")}
-                    className="flex items-center justify-between p-3 rounded-lg border border-border/50 hover:bg-muted/20 cursor-pointer transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-9 w-9 bg-primary/20 text-primary font-bold">
-                        <AvatarFallback>B</AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <div className="text-sm font-semibold">Bruno</div>
-                        <div className="text-[10px] text-muted-foreground">Last message: Audio is clear...</div>
+                  {participants.length > 0 ? (
+                    participants.map((p) => (
+                      <div
+                        key={p.id}
+                        onClick={() => openPrivateMeetingChat(p.telegram_id, p.name)}
+                        className="flex items-center justify-between p-3 rounded-lg border border-border/50 hover:bg-muted/20 cursor-pointer transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-9 w-9 bg-primary/20 text-primary font-bold">
+                            <AvatarFallback>{p.name.charAt(0).toUpperCase()}</AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <div className="text-sm font-semibold">{p.name}</div>
+                            <div className="text-[10px] text-muted-foreground">Direct 1:1 Message</div>
+                          </div>
+                        </div>
+                        <Badge variant="outline" className="text-[9px]">Private</Badge>
                       </div>
+                    ))
+                  ) : (
+                    <div className="p-6 text-center text-xs text-muted-foreground">
+                      No active 1:1 chats yet.
                     </div>
-                    <Badge variant="outline" className="text-[9px]">Private</Badge>
-                  </div>
+                  )}
                 </div>
               </ScrollArea>
             )}
