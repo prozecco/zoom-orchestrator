@@ -1,4 +1,4 @@
-// Zoom Server-to-Server OAuth + Meetings API.
+// Zoom Server-to-Server OAuth + Meetings API + Team Chat API.
 // Server-only: only import from *.functions.ts handlers or other .server.ts files.
 
 type ZoomTokenCache = { 
@@ -208,4 +208,57 @@ export async function submitZoomRegistrant(
     throw new Error(`Zoom submitRegistrant failed [${res.status}]: ${body}`);
   }
   return (await res.json()) as ZoomRegistrantResponse;
+}
+
+/**
+ * Zoom Team Chat 1:1 Direct Message (Syncs directly with user's Zoom Chat app)
+ * Requires scope: team_chat:write:user_message:admin
+ */
+export async function sendZoomDirectMessage(
+  toContactEmail: string,
+  messageText: string,
+  custom?: { clientId?: string; clientSecret?: string; accountId?: string }
+): Promise<{ id: string; date_time: string }> {
+  const token = await getZoomToken(custom);
+  const res = await fetch("https://api.zoom.us/v2/chat/users/me/messages", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      to_contact: toContactEmail,
+      message: messageText,
+    }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Zoom sendDirectMessage failed [${res.status}]: ${errText}`);
+  }
+
+  return (await res.json()) as { id: string; date_time: string };
+}
+
+/**
+ * Fetches 1:1 Direct Message History from Zoom Chat API
+ * Requires scope: team_chat:read:user_message:admin or team_chat:read:list_user_messages:admin
+ */
+export async function listZoomDirectMessages(
+  toContactEmail: string,
+  custom?: { clientId?: string; clientSecret?: string; accountId?: string }
+): Promise<any[]> {
+  const token = await getZoomToken(custom);
+  const res = await fetch(`https://api.zoom.us/v2/chat/users/me/messages?to_contact=${encodeURIComponent(toContactEmail)}&page_size=50`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    console.error(`[zoom.server] listZoomDirectMessages failed [${res.status}]: ${errText}`);
+    return [];
+  }
+
+  const data = (await res.json()) as { messages?: any[] };
+  return data.messages || [];
 }
