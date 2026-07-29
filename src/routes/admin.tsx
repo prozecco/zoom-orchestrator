@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { Shield, LayoutDashboard, Users, Radio, Settings, ArrowLeft } from "lucide-react";
+import { Shield, LayoutDashboard, Users, Radio, Settings, ArrowLeft, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTelegram } from "@/hooks/useTelegram";
 
