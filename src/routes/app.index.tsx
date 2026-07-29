@@ -1,13 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { activeMeeting as mockActiveMeeting } from "@/lib/mock-data";
 import { getActiveMeeting } from "@/lib/meetings.functions";
 import { submitRegistration, getMyRegistration } from "@/lib/registrants.functions";
 import { toast } from "sonner";
@@ -26,10 +26,13 @@ export const Route = createFileRoute("/app/")({
 function UnifiedAppPage() {
   const { user, isTelegram, haptic, mainButton, openLink } = useTelegram();
 
-  // Fetch real active meeting from Supabase DB
+  const getActive = useServerFn(getActiveMeeting);
+  const submitReg = useServerFn(submitRegistration);
+
+  // Fetch real active meeting from Supabase DB via bound Server Fn
   const activeMeetingQuery = useQuery({
     queryKey: ["activeMeeting"],
-    queryFn: () => getActiveMeeting(),
+    queryFn: () => getActive(),
     refetchInterval: 5000,
   });
 
@@ -42,7 +45,15 @@ function UnifiedAppPage() {
     durationMin: dbMeeting.duration_min ?? 60,
     passcode: dbMeeting.passcode ?? "1766",
     joinUrl: dbMeeting.join_url ?? `https://zoom.us/j/${dbMeeting.zoom_id}`,
-  } : mockActiveMeeting;
+  } : {
+    id: "85651598189",
+    topic: "ＳＵＮＣＬＯＵＤＳ １７６６",
+    host: "sunclouds-jr@outlook.com",
+    startTime: new Date().toISOString(),
+    durationMin: 1440,
+    passcode: "1766",
+    joinUrl: "https://us05web.zoom.us/j/85651598189?pwd=xxJugOAf1uy1Amwlchy4ZbshgzvoYk.1",
+  };
   
   // Registration and Status state
   const [isRegistered, setIsRegistered] = useState(false);
@@ -76,7 +87,7 @@ function UnifiedAppPage() {
     haptic?.impactOccurred("medium");
 
     try {
-      await submitRegistration({
+      await submitReg({
         data: {
           name,
           telegramUser: user.username ? `@${user.username}` : (user.first_name || "Guest"),

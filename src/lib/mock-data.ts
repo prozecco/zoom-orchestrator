@@ -44,14 +44,14 @@ export type ChatMessage = {
 };
 
 export const activeMeeting = {
-  id: "83483016779",
-  topic: "Weekly Strategy Sync",
-  host: "Elena Ross",
-  hostEmail: "elena@company.io",
-  startTime: "2026-07-14T15:00:00Z",
-  durationMin: 60,
-  passcode: "482910",
-  joinUrl: "https://zoom.us/j/83483016779",
+  id: "85651598189",
+  topic: "ＳＵＮＣＬＯＵＤＳ １７６６",
+  host: "sunclouds-jr@outlook.com",
+  hostEmail: "sunclouds-jr@outlook.com",
+  startTime: new Date().toISOString(),
+  durationMin: 1440,
+  passcode: "1766",
+  joinUrl: "https://us05web.zoom.us/j/85651598189?pwd=xxJugOAf1uy1Amwlchy4ZbshgzvoYk.1",
   status: "live" as "live" | "scheduled" | "ended",
   attendees: 42,
   capacity: 100,

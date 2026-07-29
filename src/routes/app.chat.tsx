@@ -1,5 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useRef, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -12,7 +14,7 @@ import { cn } from "@/lib/utils";
 import { useTelegram } from "@/hooks/useTelegram";
 import { useLiveChat } from "@/hooks/useLiveChat";
 import { getMeetingParticipants } from "@/lib/telegram-sync";
-import { activeMeeting } from "@/lib/mock-data";
+import { getActiveMeeting } from "@/lib/meetings.functions";
 
 export const Route = createFileRoute("/app/chat")({
   ssr: false,
@@ -25,13 +27,23 @@ type SendMode = "permanent" | "disappearing" | "view-once";
 function LiveChatPage() {
   const { user, haptic } = useTelegram();
 
+  const getActive = useServerFn(getActiveMeeting);
+  const activeMeetingQuery = useQuery({ queryKey: ["activeMeeting"], queryFn: () => getActive() });
+  const activeTopic = activeMeetingQuery.data?.topic ?? "ＳＵＮＣＬＯＵＤＳ １７６６";
+
   // Access gating (mocked, default approved)
   const [userStatus] = useState<"pending" | "approved" | "rejected">("approved");
   const [subTab, setSubTab] = useState<SubTabType>("central");
 
   // Selection states
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>("meeting-central");
-  const [activeChatTitle, setActiveChatTitle] = useState("Weekly Strategy Sync (Central)");
+  const [activeChatTitle, setActiveChatTitle] = useState(`${activeTopic} (Central)`);
+
+  useEffect(() => {
+    if (activeMeetingQuery.data?.topic && selectedConversationId === "meeting-central") {
+      setActiveChatTitle(`${activeMeetingQuery.data.topic} (Central)`);
+    }
+  }, [activeMeetingQuery.data?.topic, selectedConversationId]);
 
   // Participants list
   const [participants, setParticipants] = useState<any[]>([]);
@@ -74,7 +86,8 @@ function LiveChatPage() {
   // Load participants
   useEffect(() => {
     async function loadParticipants() {
-      const fetched = await getMeetingParticipants(activeMeeting.id, user.id);
+      const activeZoomId = activeMeetingQuery.data?.zoom_id ?? "85651598189";
+      const fetched = await getMeetingParticipants(activeZoomId, user.id);
       setParticipants(fetched.length > 0 ? fetched : [
         {
           telegram_id: 9999,
@@ -352,7 +365,7 @@ function LiveChatPage() {
                 <div
                   onClick={() => {
                     setSelectedConversationId("meeting-central");
-                    setActiveChatTitle(`${activeMeeting.topic} (Central)`);
+                    setActiveChatTitle(`${activeTopic} (Central)`);
                   }}
                   className="flex items-center justify-between p-4 rounded-lg border border-border/50 hover:bg-muted/20 cursor-pointer transition-colors"
                 >
@@ -361,7 +374,7 @@ function LiveChatPage() {
                       <AvatarFallback>C</AvatarFallback>
                     </Avatar>
                     <div>
-                      <div className="text-sm font-semibold">{activeMeeting.topic}</div>
+                      <div className="text-sm font-semibold">{activeTopic}</div>
                       <div className="text-xs text-muted-foreground">In-meeting group chat</div>
                     </div>
                   </div>

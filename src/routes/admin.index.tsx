@@ -1,10 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { activeMeeting as mockActiveMeeting, registrants as mockRegistrants, schedule as mockSchedule, stats as mockStats } from "@/lib/mock-data";
 import { getActiveMeeting, listMeetings, syncActiveMeeting, getZoomEnvConfig } from "@/lib/meetings.functions";
 import { listRegistrants } from "@/lib/registrants.functions";
 import { Calendar, Radio, UserPlus, Video, Copy, ExternalLink, Users, ArrowRight, Check, Loader2 } from "lucide-react";
@@ -18,14 +18,20 @@ export const Route = createFileRoute("/admin/")({
 
 function AdminHome() {
   const queryClient = useQueryClient();
-  const activeQuery = useQuery({ queryKey: ["activeMeeting"], queryFn: () => getActiveMeeting(), refetchInterval: 5000 });
-  const meetingsQuery = useQuery({ queryKey: ["meetings"], queryFn: () => listMeetings(), refetchInterval: 5000 });
-  const registrantsQuery = useQuery({ queryKey: ["registrants"], queryFn: () => listRegistrants(), refetchInterval: 5000 });
-  const envConfigQuery = useQuery({ queryKey: ["zoomEnvConfig"], queryFn: () => getZoomEnvConfig() });
+  const getActiveFn = useServerFn(getActiveMeeting);
+  const listMeetingsFn = useServerFn(listMeetings);
+  const listRegistrantsFn = useServerFn(listRegistrants);
+  const getZoomEnvConfigFn = useServerFn(getZoomEnvConfig);
+  const syncActiveFn = useServerFn(syncActiveMeeting);
+
+  const activeQuery = useQuery({ queryKey: ["activeMeeting"], queryFn: () => getActiveFn(), refetchInterval: 5000 });
+  const meetingsQuery = useQuery({ queryKey: ["meetings"], queryFn: () => listMeetingsFn(), refetchInterval: 5000 });
+  const registrantsQuery = useQuery({ queryKey: ["registrants"], queryFn: () => listRegistrantsFn(), refetchInterval: 5000 });
+  const envConfigQuery = useQuery({ queryKey: ["zoomEnvConfig"], queryFn: () => getZoomEnvConfigFn() });
 
   // Direct Sync Mutation
   const syncMutation = useMutation({
-    mutationFn: () => syncActiveMeeting({ data: {} }),
+    mutationFn: () => syncActiveFn({ data: {} }),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["activeMeeting"] });
       queryClient.invalidateQueries({ queryKey: ["meetings"] });

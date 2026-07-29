@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -22,12 +23,21 @@ export const Route = createFileRoute("/admin/tools")({
 function ToolsPage() {
   const { telegramId } = useTelegramViewer();
   const qc = useQueryClient();
+
+  const getZoomEnvConfigFn = useServerFn(getZoomEnvConfig);
+  const syncActiveMeetingFn = useServerFn(syncActiveMeeting);
+  const syncUpcomingMeetingsFn = useServerFn(syncUpcomingMeetings);
+  const testZoomAuthFn = useServerFn(testZoomAuth);
+  const syncZoomDirectlyFromEnvFn = useServerFn(syncZoomDirectlyFromEnv);
+  const broadcastToApprovedFn = useServerFn(broadcastToApproved);
+  const registerTelegramWebhookFn = useServerFn(registerTelegramWebhook);
+
   const [broadcast, setBroadcast] = useState("");
   const [zoomId, setZoomId] = useState("");
   const [showSecret, setShowSecret] = useState(false);
 
   // Fetch actual .env config from server
-  const envConfigQuery = useQuery({ queryKey: ["zoomEnvConfig"], queryFn: () => getZoomEnvConfig() });
+  const envConfigQuery = useQuery({ queryKey: ["zoomEnvConfig"], queryFn: () => getZoomEnvConfigFn() });
 
   // Editable / Displayed Zoom Configuration State
   const [zoomAccountId, setZoomAccountId] = useState("Xmxl4CRXRLqrvr3WXlUqAw");
@@ -57,26 +67,26 @@ function ToolsPage() {
   const [newAdminUser, setNewAdminUser] = useState("");
 
   const send = useMutation({
-    mutationFn: () => broadcastToApproved({ data: { text: broadcast, actorTelegramId: telegramId ?? 0 } }),
+    mutationFn: () => broadcastToApprovedFn({ data: { text: broadcast, actorTelegramId: telegramId ?? 0 } }),
     onSuccess: (r) => { toast.success(`Broadcast sent to ${r.sent}/${r.total}`); setBroadcast(""); qc.invalidateQueries({ queryKey: ["audit"] }); },
     onError: (e: Error) => toast.error(e.message),
   });
 
   const setActive = useMutation({
-    mutationFn: () => syncActiveMeeting({ data: { meetingId: zoomId || zoomDefaultMeetingId || undefined, actorTelegramId: telegramId } }),
+    mutationFn: () => syncActiveMeetingFn({ data: { meetingId: zoomId || zoomDefaultMeetingId || undefined, actorTelegramId: telegramId } }),
     onSuccess: () => { toast.success("Active meeting updated from Zoom API"); setZoomId(""); qc.invalidateQueries({ queryKey: ["activeMeeting"] }); qc.invalidateQueries({ queryKey: ["meetings"] }); },
     onError: (e: Error) => toast.error(e.message),
   });
 
   const syncAllUpcoming = useMutation({
-    mutationFn: () => syncUpcomingMeetings({ data: { actorTelegramId: telegramId } }),
+    mutationFn: () => syncUpcomingMeetingsFn({ data: { actorTelegramId: telegramId } }),
     onSuccess: (r) => { toast.success(`Successfully synced ${r.count} meetings from Zoom API!`); qc.invalidateQueries({ queryKey: ["meetings"] }); qc.invalidateQueries({ queryKey: ["activeMeeting"] }); },
     onError: (e: Error) => toast.error(e.message),
   });
 
   const testZoom = useMutation({
     mutationFn: () =>
-      testZoomAuth({
+      testZoomAuthFn({
         data: {
           meetingId: zoomDefaultMeetingId,
           accountId: zoomAccountId,
@@ -97,7 +107,7 @@ function ToolsPage() {
   });
 
   const syncDirectlyFromEnvMutation = useMutation({
-    mutationFn: () => syncZoomDirectlyFromEnv(),
+    mutationFn: () => syncZoomDirectlyFromEnvFn(),
     onSuccess: (saved) => {
       toast.success(`SUCCESS! Connected & Synced Zoom Meeting "${saved.topic}" (ID: ${saved.zoom_id}) from .env!`);
       qc.invalidateQueries({ queryKey: ["activeMeeting"] });
@@ -109,7 +119,7 @@ function ToolsPage() {
   const registerHook = useMutation({
     mutationFn: () => {
       const url = `${window.location.origin}/api/public/telegram/webhook`;
-      return registerTelegramWebhook({ data: { webhookUrl: url, actorTelegramId: telegramId ?? 0 } });
+      return registerTelegramWebhookFn({ data: { webhookUrl: url, actorTelegramId: telegramId ?? 0 } });
     },
     onSuccess: () => toast.success("Telegram webhook registered"),
     onError: (e: Error) => toast.error(e.message),

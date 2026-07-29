@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { listAudit } from "@/lib/viewer.functions";
@@ -11,7 +12,8 @@ export const Route = createFileRoute("/admin/audit")({
 });
 
 function AuditPage() {
-  const audit = useQuery({ queryKey: ["audit"], queryFn: () => listAudit(), refetchInterval: 8000 });
+  const listAuditFn = useServerFn(listAudit);
+  const audit = useQuery({ queryKey: ["audit"], queryFn: () => listAuditFn(), refetchInterval: 8000 });
 
   return (
     <Card>

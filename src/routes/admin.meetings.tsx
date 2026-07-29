@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,12 +25,17 @@ type Meeting = Awaited<ReturnType<typeof listMeetings>>[number];
 function MeetingsPage() {
   const { telegramId } = useTelegramViewer();
   const qc = useQueryClient();
-  const meetings = useQuery({ queryKey: ["meetings"], queryFn: () => listMeetings() });
-  const active = useQuery({ queryKey: ["activeMeeting"], queryFn: () => getActiveMeeting() });
+
+  const listMeetingsFn = useServerFn(listMeetings);
+  const getActiveFn = useServerFn(getActiveMeeting);
+  const syncActiveFn = useServerFn(syncActiveMeeting);
+
+  const meetings = useQuery({ queryKey: ["meetings"], queryFn: () => listMeetingsFn() });
+  const active = useQuery({ queryKey: ["activeMeeting"], queryFn: () => getActiveFn() });
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const syncActive = useMutation({
-    mutationFn: () => syncActiveMeeting({ data: { actorTelegramId: telegramId } }),
+    mutationFn: () => syncActiveFn({ data: { actorTelegramId: telegramId } }),
     onSuccess: () => {
       toast.success("Active meeting synced from Zoom");
       qc.invalidateQueries({ queryKey: ["meetings"] });

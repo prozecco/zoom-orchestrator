@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -76,6 +77,9 @@ const filterChips = [
 ];
 
 function RegistrantsPage() {
+  const listRegs = useServerFn(listRegistrants);
+  const getActive = useServerFn(getActiveMeeting);
+  
   const { telegramId, user } = useTelegramViewer();
   const qc = useQueryClient();
   const [q, setQ] = useState("");
@@ -84,8 +88,8 @@ function RegistrantsPage() {
   const [selectedRegistrant, setSelectedRegistrant] = useState<Registrant | null>(null);
   const [activeMeetingOnly, setActiveMeetingOnly] = useState(true);
 
-  const registrantsQuery = useQuery({ queryKey: ["registrants"], queryFn: () => listRegistrants(), refetchInterval: 5000 });
-  const activeMeetingQuery = useQuery({ queryKey: ["active-meeting"], queryFn: () => getActiveMeeting(), refetchInterval: 15000 });
+  const registrantsQuery = useQuery({ queryKey: ["registrants"], queryFn: () => listRegs(), refetchInterval: 5000 });
+  const activeMeetingQuery = useQuery({ queryKey: ["active-meeting"], queryFn: () => getActive(), refetchInterval: 15000 });
   const activeMeeting = activeMeetingQuery.data;
 
   const allLive: (Registrant & { meeting_id: string | null })[] = (registrantsQuery.data ?? []).map((dbR) => ({
