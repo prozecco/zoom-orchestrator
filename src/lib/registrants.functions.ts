@@ -156,14 +156,23 @@ export const getMyRegistration = createServerFn({ method: "GET" })
 
 /**
  * Lists all registrants for admin dashboard.
- * If the database registrants list is empty, automatically triggers syncLiveZoomData
- * to populate all approved and pending registrants from Zoom API.
+ * Supports forceSync: true to fetch latest registrants directly from Zoom API live.
  */
 export const listRegistrants = createServerFn({ method: "GET" })
   .validator((data: unknown) =>
-    z.object({ status: z.string().optional() }).optional().parse(data)
+    z.object({ status: z.string().optional(), forceSync: z.boolean().optional() }).optional().parse(data)
   )
   .handler(async ({ data }) => {
+    // If forceSync is requested, trigger live Zoom API sync first
+    if (data?.forceSync) {
+      try {
+        const { syncLiveZoomData } = await import("./meetings.functions");
+        await syncLiveZoomData({ data: {} });
+      } catch (syncErr: any) {
+        console.warn("[registrants.functions] forceSync Zoom API note:", syncErr.message);
+      }
+    }
+
     let query = supabaseAdmin
       .from("registrants")
       .select("*, meetings(topic, zoom_id)")

@@ -326,17 +326,24 @@ export const syncLiveZoomData = createServerFn({ method: "POST" })
 
     if (meetingErr) throw new Error(`DB Error upserting meeting: ${meetingErr.message}`);
 
-    // 5. Bulk Upsert Registrants into DB (Map existing IDs to prevent constraint errors)
+    // 5. Bulk Sync Registrants into DB (Separate new inserts from existing updates)
     let syncedRegistrantsCount = 0;
     const { data: existingDbRegs } = await supabaseAdmin
       .from("registrants")
-      .select("id, email")
+      .select("id, email, telegram_user, telegram_id, status")
       .eq("meeting_id", savedMeeting.id);
 
-    const existingMap = new Map<string, string>();
+    const existingMap = new Map<string, { id: string; telegram_user: string | null; telegram_id: number | null; status: string }>();
     if (existingDbRegs) {
       for (const r of existingDbRegs) {
-        if (r.email) existingMap.set(r.email.toLowerCase().trim(), r.id);
+        if (r.email) {
+          existingMap.set(r.email.toLowerCase().trim(), {
+            id: r.id,
+            telegram_user: r.telegram_user,
+            telegram_id: r.telegram_id,
+            status: r.status,
+          });
+        }
       }
     }
 
@@ -345,35 +352,62 @@ export const syncLiveZoomData = createServerFn({ method: "POST" })
       ...pendingRegs.map((r) => ({ ...r, status: "pending" })),
     ];
 
-    const dbRowsToUpsert = allRegs.map((r) => {
+    const rowsToInsert: any[] = [];
+    const rowsToUpdate: any[] = [];
+
+    for (const r of allRegs) {
       const email = (r.email || "").toLowerCase().trim();
-      const existingId = existingMap.get(email);
-      return {
-        ...(existingId ? { id: existingId } : {}),
+      if (!email) continue;
+      const existing = existingMap.get(email);
+      const finalStatus = (existing?.status && ["on_hold", "denied", "blacklisted", "cancelled"].includes(existing.status))
+        ? existing.status
+        : r.status;
+
+      let extractedTg = existing?.telegram_user || null;
+      if (!extractedTg && r.custom_questions && Array.isArray(r.custom_questions)) {
+        for (const q of r.custom_questions) {
+          const val = String(q.value || "").trim();
+          if (val.startsWith("@") || (q.title && q.title.toLowerCase().includes("telegram"))) {
+            extractedTg = val;
+            break;
+          }
+        }
+      }
+
+      const row = {
         meeting_id: savedMeeting.id,
         email,
         name: `${r.first_name || ""} ${r.last_name || ""}`.trim() || email || "Zoom Registrant",
         phone: r.phone || null,
-        status: r.status,
+        telegram_user: extractedTg,
+        telegram_id: existing?.telegram_id || null,
+        status: finalStatus,
         registered_at: r.create_time || new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
-    }).filter((item) => Boolean(item.email));
 
-    if (dbRowsToUpsert.length > 0) {
-      // Chunk upserts in batches of 100 for maximum stability
-      const chunkSize = 100;
-      for (let i = 0; i < dbRowsToUpsert.length; i += chunkSize) {
-        const chunk = dbRowsToUpsert.slice(i, i + chunkSize);
-        const { error: regErr } = await supabaseAdmin
-          .from("registrants")
-          .upsert(chunk as never);
-        if (regErr) {
-          console.warn("[syncLiveZoomData] registrants chunk upsert note:", regErr.message);
-        } else {
-          syncedRegistrantsCount += chunk.length;
-        }
+      if (existing?.id) {
+        rowsToUpdate.push({ ...row, id: existing.id });
+      } else {
+        rowsToInsert.push(row);
       }
+    }
+
+    const chunkSize = 100;
+    // Insert new registrants in batches
+    for (let i = 0; i < rowsToInsert.length; i += chunkSize) {
+      const chunk = rowsToInsert.slice(i, i + chunkSize);
+      const { error: insErr } = await supabaseAdmin.from("registrants").insert(chunk as never);
+      if (insErr) console.warn("[syncLiveZoomData] registrants insert error:", insErr.message);
+      else syncedRegistrantsCount += chunk.length;
+    }
+
+    // Update existing registrants in batches
+    for (let i = 0; i < rowsToUpdate.length; i += chunkSize) {
+      const chunk = rowsToUpdate.slice(i, i + chunkSize);
+      const { error: upErr } = await supabaseAdmin.from("registrants").upsert(chunk as never);
+      if (upErr) console.warn("[syncLiveZoomData] registrants update error:", upErr.message);
+      else syncedRegistrantsCount += chunk.length;
     }
 
     return {

@@ -15,10 +15,8 @@ import type { Registrant } from "@/lib/mock-data";
 import { listRegistrants, updateRegistrantStatus, bulkUpdateStatus } from "@/lib/registrants.functions";
 import { getActiveMeeting } from "@/lib/meetings.functions";
 import { formatBangkokRegistrationTime } from "@/lib/time-formatter";
-import { Search, Hash, Clock, Smartphone, Globe, Check, X, AlertTriangle, CheckCircle2, UserCheck, UserX, Users } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { toast } from "sonner";
-import { useTelegramViewer } from "@/hooks/useTelegramViewer";
+import { Search, Hash, Clock, Smartphone, Globe, Check, X, AlertTriangle, CheckCircle2, UserCheck, UserX, Users, RefreshCw } from "lucide-react";
+import { syncLiveZoomData } from "@/lib/meetings.functions";
 
 export const Route = createFileRoute("/admin/registrants")({
   ssr: false,
@@ -82,6 +80,7 @@ function RegistrantsPage() {
   const getActive = useServerFn(getActiveMeeting);
   const updateStatusFn = useServerFn(updateRegistrantStatus);
   const bulkUpdateStatusFn = useServerFn(bulkUpdateStatus);
+  const syncLiveFn = useServerFn(syncLiveZoomData);
   
   const { telegramId } = useTelegramViewer();
   const qc = useQueryClient();
@@ -94,6 +93,22 @@ function RegistrantsPage() {
   const registrantsQuery = useQuery({ queryKey: ["registrants"], queryFn: () => listRegs(), refetchInterval: 5000 });
   const activeMeetingQuery = useQuery({ queryKey: ["active-meeting"], queryFn: () => getActive(), refetchInterval: 15000 });
   const activeMeeting = activeMeetingQuery.data;
+
+  // Live Sync Mutation directly from Zoom API
+  const liveSyncMutation = useMutation({
+    mutationFn: () => syncLiveFn({ data: {} }),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["registrants"] });
+      qc.invalidateQueries({ queryKey: ["active-meeting"] });
+      qc.invalidateQueries({ queryKey: ["approvedRegistrants"] });
+      toast.success(
+        `ซิงค์ข้อมูลสดจาก Zoom API เรียบร้อย! ดึงรายชื่ออนุมัติ ${data.approved_registrants_count} คน และรออนุมัติ ${data.pending_registrants_count} คน`
+      );
+    },
+    onError: (err: any) => {
+      toast.error(`เกิดข้อผิดพลาดในการซิงค์ข้อมูล: ${err.message}`);
+    },
+  });
 
   // Single approval/denial mutation
   const updateMutation = useMutation({
@@ -201,6 +216,17 @@ function RegistrantsPage() {
           <h1 className="text-lg font-bold">Users Management</h1>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => liveSyncMutation.mutate()}
+            disabled={liveSyncMutation.isPending}
+            className="text-xs border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 h-8 shadow-sm"
+            title="Sync latest live registrants & attendees from Zoom API"
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5 mr-1", liveSyncMutation.isPending && "animate-spin")} />
+            {liveSyncMutation.isPending ? "Syncing..." : "Sync Live Zoom"}
+          </Button>
           <Button
             variant="outline"
             size="sm"
