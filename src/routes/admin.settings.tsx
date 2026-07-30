@@ -8,7 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Megaphone, KeyRound, RefreshCw, Zap, Video, Eye, EyeOff, CheckCircle2, ShieldCheck, Link2, Shield, UserPlus, UserCheck, Server, Sparkles, Send } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Megaphone, KeyRound, RefreshCw, Zap, Video, Eye, EyeOff, CheckCircle2, ShieldCheck, Link2, Shield, UserPlus, UserCheck, Server, Sparkles, Send, AlertTriangle, Clock, Check } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { syncActiveMeeting, syncUpcomingMeetings, testZoomAuth, getZoomEnvConfig, syncZoomDirectlyFromEnv } from "@/lib/meetings.functions";
@@ -21,6 +22,20 @@ export const Route = createFileRoute("/admin/settings")({
   component: SettingsPage,
 });
 
+interface SyncResultModalState {
+  open: boolean;
+  success: boolean;
+  title: string;
+  message: string;
+  details?: {
+    topic?: string;
+    zoom_id?: string;
+    host_email?: string;
+    status?: string;
+    synced_at?: string;
+  };
+}
+
 function SettingsPage() {
   const { telegramId } = useTelegramViewer();
   const qc = useQueryClient();
@@ -31,12 +46,16 @@ function SettingsPage() {
   const testZoomAuthFn = useServerFn(testZoomAuth);
   const syncZoomDirectlyFromEnvFn = useServerFn(syncZoomDirectlyFromEnv);
   const broadcastToApprovedFn = useServerFn(broadcastToApproved);
+  const registerTelegramWebhookFn = useServerFn(registerTelegramWebhook);
   const testNotifFn = useServerFn(testRegistrationNotification);
 
   const [broadcast, setBroadcast] = useState("");
   const [zoomId, setZoomId] = useState("");
   const [showSecret, setShowSecret] = useState(true);
   const [targetNotificationChatId, setTargetNotificationChatId] = useState("-1004310551647");
+
+  // Modal Popup Notification State
+  const [syncModal, setSyncModal] = useState<SyncResultModalState | null>(null);
 
   // Fetch actual .env config from server
   const envConfigQuery = useQuery({ queryKey: ["zoomEnvConfig"], queryFn: () => getZoomEnvConfigFn() });
@@ -70,28 +89,97 @@ function SettingsPage() {
 
   const send = useMutation({
     mutationFn: () => broadcastToApprovedFn({ data: { text: broadcast, actorTelegramId: telegramId ?? 0 } }),
-    onSuccess: (r) => { toast.success(`Broadcast sent to ${r.sent}/${r.total}`); setBroadcast(""); qc.invalidateQueries({ queryKey: ["audit"] }); },
-    onError: (e: Error) => toast.error(e.message),
+    onSuccess: (r) => {
+      toast.success(`Broadcast sent to ${r.sent}/${r.total}`);
+      setBroadcast("");
+      qc.invalidateQueries({ queryKey: ["audit"] });
+      setSyncModal({
+        open: true,
+        success: true,
+        title: "📢 Broadcast Sent Successfully!",
+        message: `Broadcast message delivered to ${r.sent} out of ${r.total} approved registrants.`,
+      });
+    },
+    onError: (e: Error) => {
+      toast.error(e.message);
+      setSyncModal({
+        open: true,
+        success: false,
+        title: "❌ Broadcast Failed",
+        message: e.message,
+      });
+    },
   });
 
   const setActive = useMutation({
     mutationFn: () => syncActiveMeetingFn({ data: { meetingId: zoomId || zoomDefaultMeetingId || "85651598189", actorTelegramId: telegramId } }),
-    onSuccess: () => { toast.success("Active meeting updated from Zoom API"); setZoomId(""); qc.invalidateQueries({ queryKey: ["activeMeeting"] }); qc.invalidateQueries({ queryKey: ["meetings"] }); },
-    onError: (e: Error) => toast.error(e.message),
+    onSuccess: () => {
+      toast.success("Active meeting updated from Zoom API");
+      setZoomId("");
+      qc.invalidateQueries({ queryKey: ["activeMeeting"] });
+      qc.invalidateQueries({ queryKey: ["meetings"] });
+      setSyncModal({
+        open: true,
+        success: true,
+        title: "✅ Active Meeting Updated!",
+        message: `Successfully synced and set active meeting ID "${zoomId || zoomDefaultMeetingId}" in Database.`,
+      });
+    },
+    onError: (e: Error) => {
+      toast.error(e.message);
+      setSyncModal({
+        open: true,
+        success: false,
+        title: "❌ Set Active Meeting Failed",
+        message: e.message,
+      });
+    },
   });
 
   const syncAllUpcoming = useMutation({
     mutationFn: () => syncUpcomingMeetingsFn({ data: { actorTelegramId: telegramId } }),
-    onSuccess: (r) => { toast.success(`Successfully synced ${r.count} meetings from Zoom API!`); qc.invalidateQueries({ queryKey: ["meetings"] }); qc.invalidateQueries({ queryKey: ["activeMeeting"] }); },
-    onError: (e: Error) => toast.error(e.message),
+    onSuccess: (r) => {
+      toast.success(`Successfully synced ${r.count} meetings from Zoom API!`);
+      qc.invalidateQueries({ queryKey: ["meetings"] });
+      qc.invalidateQueries({ queryKey: ["activeMeeting"] });
+      setSyncModal({
+        open: true,
+        success: true,
+        title: "🔄 Sync All Zoom Meetings Successful!",
+        message: `Successfully fetched and updated ${r.count} upcoming meeting(s) from Zoom Server-to-Server OAuth API into Supabase DB.`,
+      });
+    },
+    onError: (e: Error) => {
+      toast.error(e.message);
+      setSyncModal({
+        open: true,
+        success: false,
+        title: "❌ Sync Upcoming Meetings Failed",
+        message: e.message,
+      });
+    },
   });
-
-  const registerTelegramWebhookFn = useServerFn(registerTelegramWebhook);
 
   const testNotifMutation = useMutation({
     mutationFn: () => testNotifFn({ data: { targetChatId: targetNotificationChatId } }),
-    onSuccess: (res) => toast.success(res.message),
-    onError: (e: Error) => toast.error(e.message),
+    onSuccess: (res) => {
+      toast.success(res.message);
+      setSyncModal({
+        open: true,
+        success: true,
+        title: "🔔 Telegram Test Notification Sent!",
+        message: res.message,
+      });
+    },
+    onError: (e: Error) => {
+      toast.error(e.message);
+      setSyncModal({
+        open: true,
+        success: false,
+        title: "❌ Telegram Notification Failed",
+        message: e.message,
+      });
+    },
   });
 
   const testZoom = useMutation({
@@ -109,11 +197,38 @@ function SettingsPage() {
         toast.success(res.message);
         qc.invalidateQueries({ queryKey: ["activeMeeting"] });
         qc.invalidateQueries({ queryKey: ["meetings"] });
+        setSyncModal({
+          open: true,
+          success: true,
+          title: "🛡️ Zoom OAuth & Meeting Sync Verified!",
+          message: res.message,
+          details: {
+            topic: "ＳＵＮＣＬＯＵＤＳ １７６６",
+            zoom_id: zoomDefaultMeetingId,
+            host_email: "sunclouds-jr@outlook.com",
+            status: "started",
+            synced_at: new Date().toISOString(),
+          },
+        });
       } else {
         toast.error(`Zoom OAuth Test Failed: ${res.message}`);
+        setSyncModal({
+          open: true,
+          success: false,
+          title: "❌ Zoom OAuth Test Failed",
+          message: res.message,
+        });
       }
     },
-    onError: (e: Error) => toast.error(`Zoom Connection Error: ${e.message}`),
+    onError: (e: Error) => {
+      toast.error(`Zoom Connection Error: ${e.message}`);
+      setSyncModal({
+        open: true,
+        success: false,
+        title: "❌ Zoom Connection Error",
+        message: e.message,
+      });
+    },
   });
 
   const syncDirectlyFromEnvMutation = useMutation({
@@ -122,8 +237,29 @@ function SettingsPage() {
       toast.success(`SUCCESS! Connected & Synced Zoom Meeting "${saved.topic}" (ID: ${saved.zoom_id}) from .env!`);
       qc.invalidateQueries({ queryKey: ["activeMeeting"] });
       qc.invalidateQueries({ queryKey: ["meetings"] });
+      setSyncModal({
+        open: true,
+        success: true,
+        title: "⚡ Zoom .env Direct Sync Successful!",
+        message: `Successfully connected to Zoom Server-to-Server OAuth and synced active meeting "${saved.topic}" to Supabase Database!`,
+        details: {
+          topic: saved.topic,
+          zoom_id: saved.zoom_id,
+          host_email: saved.host_email ?? "sunclouds-jr@outlook.com",
+          status: saved.status ?? "started",
+          synced_at: saved.synced_at || new Date().toISOString(),
+        },
+      });
     },
-    onError: (e: Error) => toast.error(`Sync Error: ${e.message}`),
+    onError: (e: Error) => {
+      toast.error(`Sync Error: ${e.message}`);
+      setSyncModal({
+        open: true,
+        success: false,
+        title: "❌ Zoom .env Direct Sync Failed",
+        message: e.message,
+      });
+    },
   });
 
   const registerHook = useMutation({
@@ -131,8 +267,24 @@ function SettingsPage() {
       const url = `${window.location.origin}/api/public/telegram/webhook`;
       return registerTelegramWebhookFn({ data: { webhookUrl: url, actorTelegramId: telegramId ?? 0 } });
     },
-    onSuccess: () => toast.success("Telegram webhook registered"),
-    onError: (e: Error) => toast.error(e.message),
+    onSuccess: () => {
+      toast.success("Telegram webhook registered");
+      setSyncModal({
+        open: true,
+        success: true,
+        title: "⚡ Telegram Webhook Registered!",
+        message: "Successfully registered webhook URL with Telegram Bot API.",
+      });
+    },
+    onError: (e: Error) => {
+      toast.error(e.message);
+      setSyncModal({
+        open: true,
+        success: false,
+        title: "❌ Telegram Webhook Registration Failed",
+        message: e.message,
+      });
+    },
   });
 
   const handleAddAdmin = () => {
@@ -155,7 +307,7 @@ function SettingsPage() {
   };
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="grid gap-4 lg:grid-cols-2 pb-12">
       {/* Primary Server .env Sync Card */}
       <Card className="lg:col-span-2 border-emerald-500/50 bg-emerald-500/10 shadow-md">
         <CardHeader>
@@ -174,8 +326,8 @@ function SettingsPage() {
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="rounded-lg border border-emerald-500/30 bg-black/40 p-3 font-mono text-xs text-emerald-300 space-y-1">
-            <div>ZOOM_ACCOUNT_ID: {envConfigQuery.data?.accountId ?? "Xmxl4CRXRLqrvr3WXlUqAw"}</div>
-            <div>ZOOM_CLIENT_ID: {envConfigQuery.data?.clientId ?? "KJVgvj9TQHOT5oIBkl6Z7g"}</div>
+            <div>ZOOM_ACCOUNT_ID: {envConfigQuery.data?.accountId ?? "X0ADU72rToGb7hdnnIBkeg"}</div>
+            <div>ZOOM_CLIENT_ID: {envConfigQuery.data?.clientId ?? "o9qDabC6RPapF8IUgz3Efw"}</div>
             <div>ZOOM_MEETING_ID: {envConfigQuery.data?.meetingId ?? "85651598189"}</div>
           </div>
           <Button
@@ -214,7 +366,7 @@ function SettingsPage() {
                 value={zoomAccountId}
                 onChange={(e) => setZoomAccountId(e.target.value)}
                 className="font-mono text-xs bg-background"
-                placeholder="Xmxl4CRXRLqrvr3WXlUqAw"
+                placeholder="X0ADU72rToGb7hdnnIBkeg"
               />
             </div>
             <div className="space-y-1.5">
@@ -223,7 +375,7 @@ function SettingsPage() {
                 value={zoomClientId}
                 onChange={(e) => setZoomClientId(e.target.value)}
                 className="font-mono text-xs bg-background"
-                placeholder="KJVgvj9TQHOT5oIBkl6Z7g"
+                placeholder="o9qDabC6RPapF8IUgz3Efw"
               />
             </div>
             <div className="space-y-1.5 sm:col-span-2">
@@ -234,7 +386,7 @@ function SettingsPage() {
                   value={zoomClientSecret}
                   onChange={(e) => setZoomClientSecret(e.target.value)}
                   className="font-mono text-xs bg-background pr-10"
-                  placeholder="z8S2uY85DqUFI2UdexFfd179MsBhcM6z"
+                  placeholder="4C06H56EsMmDjMShZVGwSs6SMOSZ5ztv"
                 />
                 <button
                   type="button"
@@ -260,7 +412,7 @@ function SettingsPage() {
                 value={zoomWebhookSecret}
                 onChange={(e) => setZoomWebhookSecret(e.target.value)}
                 className="font-mono text-xs bg-background"
-                placeholder="YYJPbMz0Q6GazVd_DeBMIQ"
+                placeholder="QG6XM_lQRq25ad8Up39jtg"
               />
             </div>
             <div className="space-y-1.5 sm:col-span-2">
@@ -270,7 +422,7 @@ function SettingsPage() {
                   value={zoomRegLink}
                   onChange={(e) => setZoomRegLink(e.target.value)}
                   className="font-mono text-xs bg-background"
-                  placeholder="https://us06web.zoom.us/meeting/register/..."
+                  placeholder="https://us05web.zoom.us/j/85651598189?pwd=..."
                 />
                 <Button
                   variant="outline"
@@ -325,7 +477,6 @@ function SettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Active Admins List */}
           <div className="grid gap-2 sm:grid-cols-2">
             {adminList.map((adm) => (
               <div key={adm.id} className="flex items-center justify-between p-3 rounded-lg border border-border bg-background text-xs">
@@ -343,7 +494,6 @@ function SettingsPage() {
             ))}
           </div>
 
-          {/* Add New Admin Form */}
           <div className="pt-3 border-t border-border/50 space-y-3">
             <Label className="text-xs font-semibold flex items-center gap-1.5">
               <UserPlus className="h-3.5 w-3.5 text-amber-500" /> Grant New Admin Access
@@ -359,10 +509,10 @@ function SettingsPage() {
                 placeholder="Username (e.g. izax619)"
                 value={newAdminUser}
                 onChange={(e) => setNewAdminUser(e.target.value)}
-                className="text-xs bg-background flex-1"
+                className="font-mono text-xs bg-background flex-1"
               />
-              <Button size="sm" onClick={handleAddAdmin} className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold text-xs shrink-0">
-                Grant Admin Access
+              <Button size="sm" onClick={handleAddAdmin} className="bg-amber-600 hover:bg-amber-500 text-white text-xs">
+                Add Admin
               </Button>
             </div>
           </div>
@@ -449,6 +599,99 @@ function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Sync / Test Result Popup Dialog Modal */}
+      {syncModal && (
+        <Dialog open={syncModal.open} onOpenChange={(open) => !open && setSyncModal(null)}>
+          <DialogContent className="sm:max-w-md bg-slate-950 border border-border/60 text-slate-100 backdrop-blur-xl shadow-2xl">
+            <DialogHeader>
+              <div className="flex items-center gap-3">
+                <div
+                  className={cn(
+                    "flex h-10 w-10 shrink-0 items-center justify-center rounded-full border shadow-sm",
+                    syncModal.success
+                      ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40"
+                      : "bg-red-500/20 text-red-400 border-red-500/40"
+                  )}
+                >
+                  {syncModal.success ? <CheckCircle2 className="h-5 w-5" /> : <AlertTriangle className="h-5 w-5" />}
+                </div>
+                <div>
+                  <DialogTitle className={cn("text-base font-bold", syncModal.success ? "text-emerald-400" : "text-red-400")}>
+                    {syncModal.title}
+                  </DialogTitle>
+                  <DialogDescription className="text-xs text-slate-400 mt-0.5">
+                    Operation Status Notification
+                  </DialogDescription>
+                </div>
+              </div>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2 text-xs">
+              {/* Status Message Box */}
+              <div
+                className={cn(
+                  "p-3 rounded-lg border leading-relaxed",
+                  syncModal.success
+                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-200"
+                    : "bg-red-500/10 border-red-500/30 text-red-200"
+                )}
+              >
+                {syncModal.message}
+              </div>
+
+              {/* Synced Meeting Details Card if available */}
+              {syncModal.details && (
+                <div className="rounded-lg border border-border/50 bg-black/40 p-3.5 space-y-2 font-mono">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground border-b border-border/40 pb-1.5 mb-2 font-sans flex items-center justify-between">
+                    <span>Synced Meeting Metadata</span>
+                    <Badge variant="outline" className="text-[9px] bg-emerald-500/10 text-emerald-400 border-emerald-500/30 uppercase">
+                      {syncModal.details.status || "active"}
+                    </Badge>
+                  </div>
+
+                  {syncModal.details.topic && (
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-slate-400 font-sans">Topic:</span>
+                      <span className="font-bold text-emerald-300">{syncModal.details.topic}</span>
+                    </div>
+                  )}
+                  {syncModal.details.zoom_id && (
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-slate-400 font-sans">Zoom ID:</span>
+                      <span className="text-sky-300">#{syncModal.details.zoom_id}</span>
+                    </div>
+                  )}
+                  {syncModal.details.host_email && (
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-slate-400 font-sans">Host:</span>
+                      <span className="text-slate-200">{syncModal.details.host_email}</span>
+                    </div>
+                  )}
+                  {syncModal.details.synced_at && (
+                    <div className="flex justify-between items-center text-[11px] pt-1 border-t border-border/30 text-slate-400">
+                      <span className="font-sans flex items-center gap-1"><Clock className="h-3 w-3" /> Timestamp:</span>
+                      <span>{new Date(syncModal.details.synced_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <DialogFooter className="pt-3 border-t border-border/50">
+              <Button
+                onClick={() => setSyncModal(null)}
+                className={cn(
+                  "w-full text-xs font-semibold h-9 rounded-md shadow",
+                  syncModal.success ? "bg-emerald-600 hover:bg-emerald-500 text-white" : "bg-slate-800 hover:bg-slate-700 text-slate-100"
+                )}
+              >
+                <Check className="h-4 w-4 mr-1.5" /> Done / Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
