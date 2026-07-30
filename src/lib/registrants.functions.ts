@@ -45,21 +45,21 @@ export const submitRegistration = createServerFn({ method: "POST" })
       .maybeSingle();
 
     // 2. Upsert registrant into Supabase with 'pending' status for Admin approval
+    const payloadToUpsert = {
+      ...(existingReg?.id ? { id: existingReg.id } : {}),
+      meeting_id: activeMeeting.id,
+      name,
+      email,
+      phone,
+      telegram_id: telegramId,
+      telegram_user: telegramUser,
+      status: existingReg ? undefined : "pending", // Keep status if existing, or set to pending if new
+      registered_at: new Date().toISOString(),
+    };
+
     const { data: inserted, error } = await supabaseAdmin
       .from("registrants")
-      .upsert(
-        {
-          meeting_id: activeMeeting.id,
-          name,
-          email,
-          phone,
-          telegram_id: telegramId,
-          telegram_user: telegramUser,
-          status: "pending", // Requires Admin Approval
-          registered_at: new Date().toISOString(),
-        } as never,
-        { onConflict: "email,meeting_id" }
-      )
+      .upsert(payloadToUpsert as never)
       .select()
       .single();
 
@@ -112,7 +112,9 @@ export const getMyRegistration = createServerFn({ method: "GET" })
   });
 
 /**
- * Lists all registrants for admin dashboard
+ * Lists all registrants for admin dashboard.
+ * If the database registrants list is empty, automatically triggers syncLiveZoomData
+ * to populate all approved and pending registrants from Zoom API.
  */
 export const listRegistrants = createServerFn({ method: "GET" })
   .validator((data: unknown) =>
@@ -128,10 +130,22 @@ export const listRegistrants = createServerFn({ method: "GET" })
       query = query.eq("status", data.status);
     }
 
-    const { data: list, error } = await query;
+    let { data: list, error } = await query;
     if (error) {
       console.error("[registrants.functions] Error listing registrants:", error);
       throw new Error(error.message);
+    }
+
+    // Auto-Populate Safeguard: If DB is empty, sync directly from Zoom API live
+    if (!list || list.length === 0) {
+      try {
+        const { syncLiveZoomData } = await import("./meetings.functions");
+        await syncLiveZoomData({ data: {} });
+        const { data: refetched } = await query;
+        list = refetched || [];
+      } catch (syncErr: any) {
+        console.warn("[registrants.functions] Auto live sync note:", syncErr.message);
+      }
     }
 
     return list || [];

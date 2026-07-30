@@ -105,6 +105,7 @@ export const Route = createFileRoute("/api/public/zoom/webhook")({
                   .maybeSingle();
 
                 await supabaseAdmin.from("registrants").upsert({
+                  ...(existingReg?.id ? { id: existingReg.id } : {}),
                   meeting_id: meetingObj.id,
                   name,
                   email,
@@ -112,7 +113,7 @@ export const Route = createFileRoute("/api/public/zoom/webhook")({
                   zoom_registrant_id: registrant.id || registrant.registrant_id || null,
                   status: existingReg ? undefined : "pending",
                   registered_at: new Date().toISOString(),
-                } as never, { onConflict: "email,meeting_id" });
+                } as never);
 
                 // ONLY send Telegram notification if this is a NEW registration (prevents duplicate alerts)
                 if (!existingReg) {

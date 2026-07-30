@@ -326,26 +326,39 @@ export const syncLiveZoomData = createServerFn({ method: "POST" })
 
     if (meetingErr) throw new Error(`DB Error upserting meeting: ${meetingErr.message}`);
 
-    // 5. Bulk Upsert Registrants into DB
+    // 5. Bulk Upsert Registrants into DB (Map existing IDs to prevent constraint errors)
     let syncedRegistrantsCount = 0;
-    const dbRowsToUpsert = [
-      ...approvedRegs.map((r) => ({
+    const { data: existingDbRegs } = await supabaseAdmin
+      .from("registrants")
+      .select("id, email")
+      .eq("meeting_id", savedMeeting.id);
+
+    const existingMap = new Map<string, string>();
+    if (existingDbRegs) {
+      for (const r of existingDbRegs) {
+        if (r.email) existingMap.set(r.email.toLowerCase().trim(), r.id);
+      }
+    }
+
+    const allRegs = [
+      ...approvedRegs.map((r) => ({ ...r, status: "approved" })),
+      ...pendingRegs.map((r) => ({ ...r, status: "pending" })),
+    ];
+
+    const dbRowsToUpsert = allRegs.map((r) => {
+      const email = (r.email || "").toLowerCase().trim();
+      const existingId = existingMap.get(email);
+      return {
+        ...(existingId ? { id: existingId } : {}),
         meeting_id: savedMeeting.id,
-        email: (r.email || "").toLowerCase().trim(),
-        name: `${r.first_name || ""} ${r.last_name || ""}`.trim() || r.email || "Zoom Registrant",
+        email,
+        name: `${r.first_name || ""} ${r.last_name || ""}`.trim() || email || "Zoom Registrant",
         phone: r.phone || null,
-        status: "approved",
+        status: r.status,
         registered_at: r.create_time || new Date().toISOString(),
-      })),
-      ...pendingRegs.map((r) => ({
-        meeting_id: savedMeeting.id,
-        email: (r.email || "").toLowerCase().trim(),
-        name: `${r.first_name || ""} ${r.last_name || ""}`.trim() || r.email || "Zoom Registrant",
-        phone: r.phone || null,
-        status: "pending",
-        registered_at: r.create_time || new Date().toISOString(),
-      })),
-    ].filter((item) => Boolean(item.email));
+        updated_at: new Date().toISOString(),
+      };
+    }).filter((item) => Boolean(item.email));
 
     if (dbRowsToUpsert.length > 0) {
       // Chunk upserts in batches of 100 for maximum stability
@@ -354,7 +367,7 @@ export const syncLiveZoomData = createServerFn({ method: "POST" })
         const chunk = dbRowsToUpsert.slice(i, i + chunkSize);
         const { error: regErr } = await supabaseAdmin
           .from("registrants")
-          .upsert(chunk as never, { onConflict: "email,meeting_id" });
+          .upsert(chunk as never);
         if (regErr) {
           console.warn("[syncLiveZoomData] registrants chunk upsert note:", regErr.message);
         } else {

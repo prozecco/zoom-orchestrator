@@ -329,46 +329,72 @@ export async function fetchZoomRegistrationQuestions(
 }
 
 /**
- * List registrants for a meeting filtered by status (approved, pending, denied).
+ * List ALL registrants for a meeting filtered by status (approved, pending, denied).
+ * Automatically paginates through all pages using next_page_token.
  */
 export async function listZoomRegistrants(
   meetingId: string | number,
   status: "approved" | "pending" | "denied" = "approved",
   custom?: Partial<ZoomCredentials>
 ): Promise<any[]> {
-  const res = await zoomFetch(
-    `/meetings/${encodeURIComponent(String(meetingId))}/registrants?status=${status}&page_size=300`,
-    custom
-  );
-  if (!res.ok) {
-    const body = await res.text();
-    console.warn(`[zoom.server] listZoomRegistrants failed [${res.status}]: ${body}`);
-    return [];
-  }
-  const data = (await res.json()) as { registrants?: any[] };
-  return data.registrants ?? [];
+  const allRegistrants: any[] = [];
+  let nextPageToken = "";
+
+  do {
+    const queryPath = `/meetings/${encodeURIComponent(String(meetingId))}/registrants?status=${status}&page_size=300${
+      nextPageToken ? `&next_page_token=${encodeURIComponent(nextPageToken)}` : ""
+    }`;
+    const res = await zoomFetch(queryPath, custom);
+    if (!res.ok) {
+      const body = await res.text();
+      console.warn(`[zoom.server] listZoomRegistrants failed [${res.status}]: ${body}`);
+      break;
+    }
+    const data = (await res.json()) as { registrants?: any[]; next_page_token?: string };
+    if (data.registrants?.length) {
+      allRegistrants.push(...data.registrants);
+    }
+    nextPageToken = data.next_page_token || "";
+  } while (nextPageToken);
+
+  return allRegistrants;
 }
 
 /**
- * List live or past participants for a meeting (includes join/leave timestamps and duration).
+ * List ALL live or past participants for a meeting (includes join/leave timestamps and duration).
+ * Automatically paginates through all pages using next_page_token.
  */
 export async function listZoomParticipants(
   meetingId: string | number,
   custom?: Partial<ZoomCredentials>
 ): Promise<{ total_records: number; participants: any[] }> {
-  const res = await zoomFetch(
-    `/past_meetings/${encodeURIComponent(String(meetingId))}/participants?page_size=300`,
-    custom
-  );
-  if (!res.ok) {
-    const body = await res.text();
-    console.warn(`[zoom.server] listZoomParticipants failed [${res.status}]: ${body}`);
-    return { total_records: 0, participants: [] };
-  }
-  const data = (await res.json()) as { total_records?: number; participants?: any[] };
+  const allParticipants: any[] = [];
+  let nextPageToken = "";
+  let totalRecords = 0;
+
+  do {
+    const queryPath = `/past_meetings/${encodeURIComponent(String(meetingId))}/participants?page_size=300${
+      nextPageToken ? `&next_page_token=${encodeURIComponent(nextPageToken)}` : ""
+    }`;
+    const res = await zoomFetch(queryPath, custom);
+    if (!res.ok) {
+      const body = await res.text();
+      console.warn(`[zoom.server] listZoomParticipants failed [${res.status}]: ${body}`);
+      break;
+    }
+    const data = (await res.json()) as { total_records?: number; participants?: any[]; next_page_token?: string };
+    if (typeof data.total_records === "number" && data.total_records > 0) {
+      totalRecords = data.total_records;
+    }
+    if (data.participants?.length) {
+      allParticipants.push(...data.participants);
+    }
+    nextPageToken = data.next_page_token || "";
+  } while (nextPageToken);
+
   return {
-    total_records: data.total_records ?? (data.participants?.length || 0),
-    participants: data.participants ?? [],
+    total_records: totalRecords || allParticipants.length,
+    participants: allParticipants,
   };
 }
 

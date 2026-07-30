@@ -146,10 +146,10 @@ function RegistrantsPage() {
   }));
 
   const registrantsList = activeMeetingOnly && activeMeeting
-    ? allLive.filter((r) => r.meeting_id === activeMeeting.id || r.meeting_id === activeMeeting.zoom_id)
+    ? allLive.filter((r) => !r.meeting_id || r.meeting_id === activeMeeting.id || r.meeting_id === activeMeeting.zoom_id)
     : allLive;
   const outOfSyncCount = activeMeeting
-    ? allLive.filter((r) => r.meeting_id !== activeMeeting.id && r.meeting_id !== activeMeeting.zoom_id).length
+    ? allLive.filter((r) => r.meeting_id && r.meeting_id !== activeMeeting.id && r.meeting_id !== activeMeeting.zoom_id).length
     : 0;
 
   // Modals for Member ID Settings and Attendance Management
