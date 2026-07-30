@@ -100,28 +100,6 @@ function AppLayout() {
       </header>
 
       <main className="mx-auto max-w-2xl px-4 py-6 pb-24">
-        {/* Admin Detection Banner */}
-        {isAdmin && (
-          <div className="mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-600 dark:text-amber-400 shadow-sm backdrop-blur-sm">
-            <div className="flex items-center gap-2 font-medium">
-              <ShieldCheck className="h-4 w-4 shrink-0 text-amber-500" />
-              <span>
-                Admin Account Detected (<strong>@{user.username || user.first_name}</strong>)
-              </span>
-            </div>
-            <Button
-              size="sm"
-              onClick={() => {
-                haptic?.impactOccurred("heavy");
-                navigate({ to: "/admin" });
-              }}
-              className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs w-full sm:w-auto shrink-0 shadow"
-            >
-              Open Admin Dashboard <ExternalLink className="ml-1 h-3 w-3" />
-            </Button>
-          </div>
-        )}
-
         <Outlet />
       </main>
 

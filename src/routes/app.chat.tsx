@@ -25,6 +25,8 @@ export const Route = createFileRoute("/app/chat")({
 type SubTabType = "central" | "directory" | "private-1-1";
 type SendMode = "permanent" | "disappearing" | "view-once";
 
+const CENTRAL_CONVERSATION_ID = "24fbb145-7a5a-4d14-8e82-9fccb1f74b3e";
+
 function LiveChatPage() {
   const { user, haptic } = useTelegram();
 
@@ -32,16 +34,16 @@ function LiveChatPage() {
   const activeMeetingQuery = useQuery({ queryKey: ["activeMeeting"], queryFn: () => getActive() });
   const activeTopic = activeMeetingQuery.data?.topic ?? "ＳＵＮＣＬＯＵＤＳ １７６６";
 
-  // Access gating (mocked, default approved)
+  // Access gating (default approved)
   const [userStatus] = useState<"pending" | "approved" | "rejected">("approved");
   const [subTab, setSubTab] = useState<SubTabType>("central");
 
   // Selection states
-  const [selectedConversationId, setSelectedConversationId] = useState<string | null>("meeting-central");
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(CENTRAL_CONVERSATION_ID);
   const [activeChatTitle, setActiveChatTitle] = useState(`${activeTopic} (Central)`);
 
   useEffect(() => {
-    if (activeMeetingQuery.data?.topic && selectedConversationId === "meeting-central") {
+    if (activeMeetingQuery.data?.topic && selectedConversationId === CENTRAL_CONVERSATION_ID) {
       setActiveChatTitle(`${activeMeetingQuery.data.topic} (Central)`);
     }
   }, [activeMeetingQuery.data?.topic, selectedConversationId]);
@@ -365,7 +367,7 @@ function LiveChatPage() {
               <div className="space-y-2">
                 <div
                   onClick={() => {
-                    setSelectedConversationId("meeting-central");
+                    setSelectedConversationId(CENTRAL_CONVERSATION_ID);
                     setActiveChatTitle(`${activeTopic} (Central)`);
                   }}
                   className="flex items-center justify-between p-4 rounded-lg border border-border/50 hover:bg-muted/20 cursor-pointer transition-colors"

@@ -8,11 +8,12 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getActiveMeeting, syncActiveMeeting } from "@/lib/meetings.functions";
 import { submitRegistration, getMyRegistration } from "@/lib/registrants.functions";
 import { toast } from "sonner";
 import { useTelegram } from "@/hooks/useTelegram";
-import { User, CheckCircle2, Clock, ExternalLink, ShieldCheck, RefreshCw, Video, MessageCircle, Sparkles } from "lucide-react";
+import { User, CheckCircle2, ExternalLink, ShieldCheck, RefreshCw, Video, MessageCircle, Sparkles, Globe, Users } from "lucide-react";
 import { trackZoomJoin } from "@/lib/telegram-sync";
 import { cn } from "@/lib/utils";
 import { isAdminId } from "@/lib/admin-config";
@@ -25,16 +26,32 @@ export const Route = createFileRoute("/app/")({
 const DEFAULT_MEETING = {
   id: "85651598189",
   topic: "ＳＵＮＣＬＯＵＤＳ １７６６",
-  host: "sunclouds-jr@outlook.com",
   startTime: new Date().toISOString(),
   durationMin: 1440,
   passcode: "1766",
   joinUrl: "https://us05web.zoom.us/j/85651598189?pwd=xxJugOAf1uy1Amwlchy4ZbshgzvoYk.1",
 };
 
+const COUNTRIES = [
+  "Thailand",
+  "Malaysia",
+  "Singapore",
+  "United States",
+  "Japan",
+  "Laos",
+  "Myanmar",
+  "Vietnam",
+  "Cambodia",
+  "China",
+  "India",
+  "United Kingdom",
+  "Australia",
+  "Other"
+];
+
 function UnifiedAppPage() {
   const queryClient = useQueryClient();
-  const { user, isTelegram, haptic, mainButton, openLink } = useTelegram();
+  const { user, isTelegram, haptic, openLink } = useTelegram();
 
   const getActiveFn = useServerFn(getActiveMeeting);
   const syncActiveFn = useServerFn(syncActiveMeeting);
@@ -76,7 +93,6 @@ function UnifiedAppPage() {
     ? {
         id: dbMeeting.zoom_id,
         topic: dbMeeting.topic,
-        host: dbMeeting.host_email ?? "sunclouds-jr@outlook.com",
         startTime: dbMeeting.start_time ?? new Date().toISOString(),
         durationMin: dbMeeting.duration_min ?? 1440,
         passcode: dbMeeting.passcode ?? "1766",
@@ -84,27 +100,31 @@ function UnifiedAppPage() {
       }
     : DEFAULT_MEETING;
 
-  // State management
-  const fullName = [user.first_name, user.last_name].filter(Boolean).join(" ");
-  const [name, setName] = useState(fullName || "Guest User");
+  // Form State Management matching Zoom Web Portal fields
+  const [firstName, setFirstName] = useState(user.first_name || "");
+  const [lastName, setLastName] = useState(user.last_name || "");
   const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
+  const [country, setCountry] = useState("Thailand");
   const [submitting, setSubmitting] = useState(false);
 
   // Sync inputs with telegram user profile
   useEffect(() => {
-    if (fullName && (!name || name === "Guest User")) setName(fullName);
-  }, [fullName, name]);
+    if (user.first_name && !firstName) setFirstName(user.first_name);
+    if (user.last_name && !lastName) setLastName(user.last_name);
+  }, [user.first_name, user.last_name]);
 
   // Existing registration state
   const existingReg = myRegQuery.data;
   const isRegistered = !!existingReg;
-  const regStatus = existingReg?.status || "approved";
   const personalJoinUrl = existingReg?.meetings?.join_url || currentMeeting.joinUrl;
 
   const doSubmit = async () => {
+    if (!firstName.trim()) {
+      toast.error("กรุณากรอกชื่อ (First Name)");
+      return;
+    }
     if (!email || !email.includes("@")) {
-      toast.error("กรุณากรอกอีเมลให้ถูกต้อง");
+      toast.error("กรุณากรอกอีเมลให้ถูกต้อง (Email Address)");
       return;
     }
 
@@ -114,16 +134,17 @@ function UnifiedAppPage() {
     try {
       await submitRegFn({
         data: {
-          name,
-          telegramUser: user.username ? `@${user.username}` : user.first_name || "Guest",
-          email,
-          phone: phone || "N/A",
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          email: email.trim().toLowerCase(),
+          country,
+          telegramUser: user.username ? `@${user.username}` : user.first_name ? `@${user.first_name}` : undefined,
           telegramId: user.id || null,
         },
       });
       setSubmitting(false);
       haptic?.notificationOccurred("success");
-      toast.success("ลงทะเบียนสำเร็จ — ระบบได้สร้างลิงก์เข้าเรียนส่วนตัวให้คุณเรียบร้อยแล้ว");
+      toast.success("ลงทะเบียนสำเร็จ — ระบบส่งข้อมูลเข้า Zoom API และสร้างลิงก์เข้าเรียนส่วนตัวให้คุณเรียบร้อยแล้ว");
       queryClient.invalidateQueries({ queryKey: ["myRegistration"] });
     } catch (err: any) {
       setSubmitting(false);
@@ -144,24 +165,6 @@ function UnifiedAppPage() {
     openLink(personalJoinUrl);
   };
 
-  // Telegram MainButton Integration
-  useEffect(() => {
-    if (!mainButton) return;
-    if (!isRegistered) {
-      mainButton
-        .setText("Submit Registration")
-        .setParams({ color: "#10b981", text_color: "#ffffff" })
-        .show();
-      mainButton.onClick(doSubmit);
-    } else {
-      mainButton.hide();
-    }
-    return () => {
-      mainButton.offClick(doSubmit);
-      mainButton.hide();
-    };
-  }, [mainButton, isRegistered, email, name, phone]);
-
   const isAdmin = user.id ? isAdminId(user.id) : false;
 
   return (
@@ -179,7 +182,7 @@ function UnifiedAppPage() {
         </div>
       )}
 
-      {/* Active Live Session Card */}
+      {/* Active Live Session Card (Host email removed per explicit instruction) */}
       <Card className="border-border/60 bg-card/80 backdrop-blur-sm overflow-hidden shadow-lg">
         <CardHeader className="py-4 border-b border-border/40 bg-muted/20">
           <div className="flex items-start justify-between gap-3">
@@ -193,9 +196,6 @@ function UnifiedAppPage() {
               <CardTitle className="text-base font-bold text-foreground tracking-tight">
                 {currentMeeting.topic}
               </CardTitle>
-              <CardDescription className="text-xs text-muted-foreground mt-0.5">
-                Host: {currentMeeting.host}
-              </CardDescription>
             </div>
             <Button
               size="sm"
@@ -225,7 +225,7 @@ function UnifiedAppPage() {
         </CardContent>
       </Card>
 
-      {/* Main Action View: Registered / Approved vs Registration Form */}
+      {/* Main Action View: Registered / Approved vs Zoom Portal Registration Form */}
       {isRegistered ? (
         /* Approved / Attendance Ready View */
         <Card className="border-emerald-500/30 bg-emerald-950/20 shadow-xl">
@@ -281,7 +281,7 @@ function UnifiedAppPage() {
           </CardContent>
         </Card>
       ) : (
-        /* Registration Form View */
+        /* Registration Form View matching Zoom Web Portal fields */
         <Card className="border-border/60 bg-card/80 shadow-xl">
           <CardHeader className="py-4 border-b border-border/40">
             <div className="flex items-center gap-3">
@@ -290,9 +290,9 @@ function UnifiedAppPage() {
                 <AvatarFallback><User className="h-5 w-5" /></AvatarFallback>
               </Avatar>
               <div>
-                <CardTitle className="text-sm font-bold">Register to Attend</CardTitle>
+                <CardTitle className="text-sm font-bold">Meeting Registration</CardTitle>
                 <CardDescription className="text-xs">
-                  {isTelegram ? `Signed in as @${user.username || user.first_name}` : "Enter your email to join"}
+                  {isTelegram ? `Signed in as @${user.username || user.first_name}` : "Enter your registration details"}
                 </CardDescription>
               </div>
             </div>
@@ -300,35 +300,38 @@ function UnifiedAppPage() {
 
           <CardContent className="p-4">
             <form onSubmit={onSubmit} className="space-y-3">
-              <div className="space-y-1">
-                <Label htmlFor="name" className="text-xs font-semibold">Full Name</Label>
-                <Input
-                  id="name"
-                  required
-                  placeholder="Your Name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="text-xs bg-black/20 border-border/50 h-9"
-                />
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label htmlFor="firstName" className="text-xs font-semibold">First Name *</Label>
+                  <Input
+                    id="firstName"
+                    required
+                    placeholder="First Name"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    className="text-xs bg-black/20 border-border/50 h-9"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="lastName" className="text-xs font-semibold">Last Name *</Label>
+                  <Input
+                    id="lastName"
+                    required
+                    placeholder="Last Name"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    className="text-xs bg-black/20 border-border/50 h-9"
+                  />
+                </div>
               </div>
 
               <div className="space-y-1">
-                <Label htmlFor="tg" className="text-xs font-semibold">Telegram Handle</Label>
-                <Input
-                  id="tg"
-                  readOnly
-                  value={user.username ? `@${user.username}` : user.first_name ? `@${user.first_name}` : "@guest"}
-                  className="text-xs bg-black/20 border-border/50 h-9 opacity-70 cursor-not-allowed font-mono"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <Label htmlFor="email" className="text-xs font-semibold">Email Address</Label>
+                <Label htmlFor="email" className="text-xs font-semibold">Email Address *</Label>
                 <Input
                   id="email"
                   type="email"
                   required
-                  placeholder="your.email@example.com"
+                  placeholder="join@company.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="text-xs bg-black/20 border-border/50 h-9"
@@ -336,13 +339,26 @@ function UnifiedAppPage() {
               </div>
 
               <div className="space-y-1">
-                <Label htmlFor="phone" className="text-xs font-semibold">Phone Number (Optional)</Label>
+                <Label htmlFor="country" className="text-xs font-semibold">Country/Region *</Label>
+                <Select value={country} onValueChange={setCountry}>
+                  <SelectTrigger className="text-xs bg-black/20 border-border/50 h-9">
+                    <SelectValue placeholder="Select country/region" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {COUNTRIES.map((c) => (
+                      <SelectItem key={c} value={c} className="text-xs">{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="tg" className="text-xs font-semibold">Telegram Username *</Label>
                 <Input
-                  id="phone"
-                  placeholder="+66 81 234 5678"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="text-xs bg-black/20 border-border/50 h-9"
+                  id="tg"
+                  readOnly
+                  value={user.username ? `@${user.username}` : user.first_name ? `@${user.first_name}` : "@guest"}
+                  className="text-xs bg-black/20 border-border/50 h-9 opacity-70 cursor-not-allowed font-mono"
                 />
               </div>
 
@@ -353,7 +369,7 @@ function UnifiedAppPage() {
               >
                 {submitting ? (
                   <div className="flex items-center gap-2">
-                    <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Submitting...
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Submitting to Zoom API...
                   </div>
                 ) : (
                   <div className="flex items-center gap-1.5">

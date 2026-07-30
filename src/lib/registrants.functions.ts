@@ -5,16 +5,19 @@ import { notifyAdminRegistration } from "./telegram-notifier.server";
 
 // Schema for registration submission
 const SubmitRegistrationSchema = z.object({
-  name: z.string().min(1, "Name is required"),
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  name: z.string().optional(),
   email: z.string().email("Invalid email address"),
+  country: z.string().optional(),
   phone: z.string().optional(),
   telegramUser: z.string().optional(),
   telegramId: z.number().nullable().optional(),
 });
 
 /**
- * Submits a new registrant from Telegram Mini App / Web App
- * and triggers a Telegram Notification to Admin.
+ * Submits a new registrant from Telegram Mini App / Web App,
+ * submits to Zoom API, upserts into Supabase DB, and triggers Telegram Notification to Admin.
  */
 export const submitRegistration = createServerFn({ method: "POST" })
   .validator((data: unknown) => SubmitRegistrationSchema.parse(data))
@@ -30,11 +33,28 @@ export const submitRegistration = createServerFn({ method: "POST" })
       throw new Error("No active meeting found to register for");
     }
 
-    const name = data.name.trim();
+    const firstName = data.firstName?.trim() || data.name?.trim()?.split(" ")[0] || "Registrant";
+    const lastName = data.lastName?.trim() || data.name?.trim()?.split(" ").slice(1).join(" ") || "";
+    const name = `${firstName} ${lastName}`.trim();
     const email = data.email.trim().toLowerCase();
+    const country = data.country?.trim() || "Thailand";
     const phone = data.phone?.trim() || null;
     const telegramId = data.telegramId || null;
     const telegramUser = data.telegramUser || null;
+
+    // 2. Submit to Zoom API
+    try {
+      const { submitZoomRegistrant } = await import("./zoom.server");
+      await submitZoomRegistrant(activeMeeting.zoom_id, {
+        first_name: firstName,
+        last_name: lastName || undefined,
+        email,
+        country,
+        custom_questions: telegramUser ? [{ title: "Telegram Username", value: telegramUser }] : undefined,
+      });
+    } catch (zoomErr: any) {
+      console.warn("[registrants.functions] Zoom API registrant submit note:", zoomErr.message);
+    }
 
     // Check if already registered to avoid duplicate Telegram notifications
     const { data: existingReg } = await supabaseAdmin
@@ -44,7 +64,7 @@ export const submitRegistration = createServerFn({ method: "POST" })
       .eq("email", email)
       .maybeSingle();
 
-    // 2. Upsert registrant into Supabase with 'pending' status for Admin approval
+    // 3. Upsert registrant into Supabase with 'pending' status for Admin approval
     const payloadToUpsert = {
       ...(existingReg?.id ? { id: existingReg.id } : {}),
       meeting_id: activeMeeting.id,
@@ -53,7 +73,7 @@ export const submitRegistration = createServerFn({ method: "POST" })
       phone,
       telegram_id: telegramId,
       telegram_user: telegramUser,
-      status: existingReg ? undefined : "pending", // Keep status if existing, or set to pending if new
+      status: existingReg ? undefined : "pending",
       registered_at: new Date().toISOString(),
     };
 
@@ -68,7 +88,7 @@ export const submitRegistration = createServerFn({ method: "POST" })
       throw new Error(`Failed to save registration: ${error.message}`);
     }
 
-    // 3. Trigger Telegram Notification ONLY if this is a NEW registration (prevents duplicates)
+    // 4. Trigger Telegram Notification ONLY if this is a NEW registration (prevents duplicates)
     if (!existingReg) {
       await notifyAdminRegistration({
         name,
