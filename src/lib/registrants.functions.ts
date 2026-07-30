@@ -139,6 +139,7 @@ export const listRegistrants = createServerFn({ method: "GET" })
 
 /**
  * Updates a single registrant's status (approved, denied, on_hold, etc.)
+ * and syncs status back to Zoom API & sends Telegram notification.
  */
 export const updateRegistrantStatus = createServerFn({ method: "POST" })
   .validator((data: unknown) =>
@@ -152,7 +153,7 @@ export const updateRegistrantStatus = createServerFn({ method: "POST" })
       .from("registrants")
       .update({ status: data.status, updated_at: new Date().toISOString() } as never)
       .eq("id", data.id)
-      .select()
+      .select("*, meetings(zoom_id, topic)")
       .single();
 
     if (error) {
@@ -160,11 +161,35 @@ export const updateRegistrantStatus = createServerFn({ method: "POST" })
       throw new Error(error.message);
     }
 
+    // Sync status change to Zoom API if status is approved or denied
+    if (updated?.email && (data.status === "approved" || data.status === "denied")) {
+      try {
+        const { updateZoomRegistrantStatus } = await import("./zoom.server");
+        const zoomMeetingId = (updated as any)?.meetings?.zoom_id || process.env.ZOOM_MEETING_ID || "85651598189";
+        const zoomAction = data.status === "approved" ? "approve" : "deny";
+        await updateZoomRegistrantStatus(zoomMeetingId, zoomAction, [{ email: updated.email }]);
+      } catch (err: any) {
+        console.warn("[registrants.functions] Zoom API status sync note:", err.message);
+      }
+
+      try {
+        const { notifyAdminStatusChange } = await import("./telegram-notifier.server");
+        await notifyAdminStatusChange({
+          registrantName: updated.name || updated.email,
+          registrantEmail: updated.email,
+          newStatus: data.status as any,
+          meetingTopic: (updated as any)?.meetings?.topic || "ＳＵＮＣＬＯＵＤＳ １７６６",
+        });
+      } catch (err: any) {
+        console.warn("[registrants.functions] Telegram status notification note:", err.message);
+      }
+    }
+
     return updated;
   });
 
 /**
- * Bulk updates multiple registrants' status
+ * Bulk updates multiple registrants' status and syncs with Zoom API & Telegram
  */
 export const bulkUpdateStatus = createServerFn({ method: "POST" })
   .validator((data: unknown) =>
@@ -176,17 +201,30 @@ export const bulkUpdateStatus = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     if (!data.ids.length) return { updated: 0 };
 
-    const { error } = await supabaseAdmin
+    const { data: updatedList, error } = await supabaseAdmin
       .from("registrants")
       .update({ status: data.status, updated_at: new Date().toISOString() } as never)
-      .in("id", data.ids);
+      .in("id", data.ids)
+      .select("*, meetings(zoom_id, topic)");
 
     if (error) {
       console.error("[registrants.functions] Error bulk updating status:", error);
       throw new Error(error.message);
     }
 
-    return { updated: data.ids.length };
+    if (updatedList?.length && (data.status === "approved" || data.status === "denied")) {
+      try {
+        const { updateZoomRegistrantStatus } = await import("./zoom.server");
+        const zoomMeetingId = (updatedList[0] as any)?.meetings?.zoom_id || process.env.ZOOM_MEETING_ID || "85651598189";
+        const zoomAction = data.status === "approved" ? "approve" : "deny";
+        const registrantsPayload = updatedList.map((r: any) => ({ email: r.email }));
+        await updateZoomRegistrantStatus(zoomMeetingId, zoomAction, registrantsPayload);
+      } catch (err: any) {
+        console.warn("[registrants.functions] Zoom API bulk status sync note:", err.message);
+      }
+    }
+
+    return { updated: updatedList?.length || 0 };
   });
 
 /**

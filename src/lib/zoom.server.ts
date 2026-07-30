@@ -409,6 +409,40 @@ export async function submitZoomRegistrant(
   };
 }
 
+/**
+ * Update registrant status on Zoom API (approve, deny, cancel).
+ */
+export async function updateZoomRegistrantStatus(
+  meetingId: string | number,
+  action: "approve" | "deny" | "cancel",
+  registrants: Array<{ email: string; id?: string }>,
+  custom?: Partial<ZoomCredentials>
+): Promise<boolean> {
+  if (!meetingId || !registrants.length) return false;
+
+  const res = await zoomFetch(
+    `/meetings/${encodeURIComponent(String(meetingId))}/registrants/status`,
+    custom,
+    {
+      method: "PUT",
+      body: JSON.stringify({
+        action,
+        registrants: registrants.map((r) => ({
+          email: r.email,
+          ...(r.id ? { id: r.id } : {}),
+        })),
+      }),
+    }
+  );
+
+  if (!res.ok) {
+    const errText = await res.text();
+    console.warn(`[zoom.server] updateZoomRegistrantStatus failed [${res.status}]: ${errText}`);
+    return false;
+  }
+  return true;
+}
+
 // ─── Team Chat API ───────────────────────────────────────────────────────────
 
 /**

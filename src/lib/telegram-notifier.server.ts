@@ -3,6 +3,14 @@ import { getAdminIds } from "./admin-config";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
+function escapeHtml(text: string | null | undefined): string {
+  if (!text) return "";
+  return String(text)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 export interface RegistrationNotificationPayload {
   name: string;
   email: string;
@@ -43,34 +51,34 @@ export async function notifyAdminRegistration(payload: RegistrationNotificationP
       : new Date().toLocaleString("th-TH", { timeZone: "Asia/Bangkok" });
 
     const messageLines = [
-      `🔔 *มีผู้ลงทะเบียนเข้าร่วมใหม่!*`,
+      `🔔 <b>มีผู้ลงทะเบียนเข้าร่วมใหม่!</b>`,
       ``,
-      `📌 *ช่องทาง:* ${sourceLabel}`,
-      `👤 *ชื่อ-นามสกุล:* ${payload.name}`,
-      `📧 *อีเมล:* \`${payload.email}\``,
+      `📌 <b>ช่องทาง:</b> ${escapeHtml(sourceLabel)}`,
+      `👤 <b>ชื่อ-นามสกุล:</b> ${escapeHtml(payload.name)}`,
+      `📧 <b>อีเมล:</b> <code>${escapeHtml(payload.email)}</code>`,
     ];
 
     if (payload.phone) {
-      messageLines.push(`📞 *เบอร์โทร:* \`${payload.phone}\``);
+      messageLines.push(`📞 <b>เบอร์โทร:</b> <code>${escapeHtml(payload.phone)}</code>`);
     }
     if (payload.telegramHandle) {
-      messageLines.push(`💬 *Telegram:* @${payload.telegramHandle.replace("@", "")}`);
+      messageLines.push(`💬 <b>Telegram:</b> @${escapeHtml(payload.telegramHandle.replace("@", ""))}`);
     } else if (payload.telegramId) {
-      messageLines.push(`🆔 *Telegram ID:* \`${payload.telegramId}\``);
+      messageLines.push(`🆔 <b>Telegram ID:</b> <code>${escapeHtml(String(payload.telegramId))}</code>`);
     }
 
     if (payload.meetingTopic) {
-      messageLines.push(`📅 *หัวข้อ:* ${payload.meetingTopic}`);
+      messageLines.push(`📅 <b>หัวข้อ:</b> ${escapeHtml(payload.meetingTopic)}`);
     }
 
-    messageLines.push(`⏰ *เวลา:* ${timeStr}`);
+    messageLines.push(`⏰ <b>เวลา:</b> ${escapeHtml(timeStr)}`);
 
     const text = messageLines.join("\n");
 
-    // Send notification to all configured admins and target chat room
+    // Send notification to all configured admins and target chat room using HTML mode
     for (const chatId of adminIds) {
       try {
-        await sendTelegramMessage(chatId, text, { parse_mode: "Markdown" });
+        await sendTelegramMessage(chatId, text, { parse_mode: "HTML" });
       } catch (err) {
         console.error(`[telegram-notifier] Failed to send notification to chat ${chatId}:`, err);
       }
@@ -79,6 +87,51 @@ export async function notifyAdminRegistration(payload: RegistrationNotificationP
     return true;
   } catch (error) {
     console.error("[telegram-notifier] Exception in notifyAdminRegistration:", error);
+    return false;
+  }
+}
+
+export interface StatusChangeNotificationPayload {
+  registrantName: string;
+  registrantEmail: string;
+  newStatus: "approved" | "denied" | "on_hold" | "pending";
+  meetingTopic?: string;
+}
+
+/**
+ * Broadcasts a Telegram notification when a registrant's approval status is updated.
+ */
+export async function notifyAdminStatusChange(payload: StatusChangeNotificationPayload): Promise<boolean> {
+  try {
+    const adminIds = Array.from(getAdminIds());
+    if (!adminIds.length) return false;
+
+    const statusBadge = payload.newStatus === "approved" 
+      ? "✅ อนุมัติสิทธิ์ (Approved)" 
+      : payload.newStatus === "denied" 
+      ? "❌ ปฏิเสธ (Denied)" 
+      : "⏸️ พักการอนุมัติ (On Hold)";
+
+    const text = [
+      `📢 <b>อัปเดตสถานะการอนุมัติผู้สมัคร!</b>`,
+      ``,
+      `👤 <b>ผู้สมัคร:</b> ${escapeHtml(payload.registrantName)}`,
+      `📧 <b>อีเมล:</b> <code>${escapeHtml(payload.registrantEmail)}</code>`,
+      `🏷️ <b>สถานะใหม่:</b> <b>${escapeHtml(statusBadge)}</b>`,
+      payload.meetingTopic ? `📅 <b>หัวข้อ:</b> ${escapeHtml(payload.meetingTopic)}` : "",
+      `⏰ <b>เวลา:</b> ${escapeHtml(new Date().toLocaleString("th-TH", { timeZone: "Asia/Bangkok" }))}`
+    ].filter(Boolean).join("\n");
+
+    for (const chatId of adminIds) {
+      try {
+        await sendTelegramMessage(chatId, text, { parse_mode: "HTML" });
+      } catch (err) {
+        console.error(`[telegram-notifier] Failed to send status notification to ${chatId}:`, err);
+      }
+    }
+    return true;
+  } catch (err) {
+    console.error("[telegram-notifier] Exception in notifyAdminStatusChange:", err);
     return false;
   }
 }
@@ -93,7 +146,7 @@ export const testRegistrationNotification = createServerFn({ method: "POST" })
     }).parse(raw ?? {})
   )
   .handler(async ({ data }) => {
-    const targetChat = data.targetChatId?.trim() || process.env.NOTIFICATION_CHAT_ID || process.env.ADMIN_CHAT_ID || "6255415226";
+    const targetChat = data.targetChatId?.trim() || process.env.NOTIFICATION_CHAT_ID || process.env.ADMIN_CHAT_ID || "-1004310551647";
     const chatIdNum = Number(targetChat);
 
     if (!Number.isFinite(chatIdNum) || chatIdNum === 0) {
@@ -118,6 +171,6 @@ export const testRegistrationNotification = createServerFn({ method: "POST" })
 
     return {
       success: true,
-      message: `ส่งข้อความทดสอบการแจ้งเตือนไปยังห้องแชท Telegram ID "${chatIdNum}" สำเร็จแล้ว!`,
+      message: `ส่งข้อความทดสอบการแจ้งเตือน (HTML Mode) ไปยังห้องแชท Telegram ID "${chatIdNum}" สำเร็จแล้ว!`,
     };
   });

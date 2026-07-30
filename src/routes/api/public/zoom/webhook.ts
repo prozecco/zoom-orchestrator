@@ -66,22 +66,34 @@ export const Route = createFileRoute("/api/public/zoom/webhook")({
           if (event === "meeting.registration_created") {
             const registrant = eventPayload?.object?.registrant;
             const meetingId = String(eventPayload?.object?.id || "");
-            const topic = eventPayload?.object?.topic || "Zoom Meeting";
+            const topic = eventPayload?.object?.topic || "ＳＵＮＣＬＯＵＤＳ １７６６";
 
             if (registrant && registrant.email) {
               const name = `${registrant.first_name || ""} ${registrant.last_name || ""}`.trim() || registrant.email;
-              const email = registrant.email;
+              const email = registrant.email.trim().toLowerCase();
               const phone = registrant.phone || null;
 
-              // Insert / Upsert into Supabase DB registrants table
               const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
               
-              // Find matching meeting UUID
-              const { data: meetingObj } = await supabaseAdmin
-                .from("meetings")
-                .select("id")
-                .eq("zoom_id", meetingId)
-                .maybeSingle();
+              // 1. Find matching meeting UUID by zoom_id or active fallback
+              let meetingObj: any = null;
+              if (meetingId) {
+                const { data: found } = await supabaseAdmin
+                  .from("meetings")
+                  .select("id, topic")
+                  .eq("zoom_id", meetingId)
+                  .maybeSingle();
+                meetingObj = found;
+              }
+
+              if (!meetingObj) {
+                const { data: activeFound } = await supabaseAdmin
+                  .from("meetings")
+                  .select("id, topic")
+                  .eq("is_active", true)
+                  .maybeSingle();
+                meetingObj = activeFound;
+              }
 
               if (meetingObj) {
                 // Check if user is already registered in DB for this meeting
@@ -89,16 +101,16 @@ export const Route = createFileRoute("/api/public/zoom/webhook")({
                   .from("registrants")
                   .select("id")
                   .eq("meeting_id", meetingObj.id)
-                  .eq("email", email.toLowerCase())
+                  .eq("email", email)
                   .maybeSingle();
 
                 await supabaseAdmin.from("registrants").upsert({
                   meeting_id: meetingObj.id,
                   name,
-                  email: email.toLowerCase(),
+                  email,
                   phone,
                   zoom_registrant_id: registrant.id || registrant.registrant_id || null,
-                  status: existingReg ? undefined : "pending", // Default to pending for approval if new
+                  status: existingReg ? undefined : "pending",
                   registered_at: new Date().toISOString(),
                 } as never, { onConflict: "email,meeting_id" });
 
@@ -109,7 +121,7 @@ export const Route = createFileRoute("/api/public/zoom/webhook")({
                     email,
                     phone,
                     source: "zoom_web_portal",
-                    meetingTopic: topic,
+                    meetingTopic: meetingObj.topic || topic,
                     registeredAt: new Date().toISOString(),
                   });
                 }
@@ -125,11 +137,24 @@ export const Route = createFileRoute("/api/public/zoom/webhook")({
             if (messageObj && messageObj.message) {
               const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-              const { data: meetingObj } = await supabaseAdmin
-                .from("meetings")
-                .select("id")
-                .eq("zoom_id", meetingId)
-                .maybeSingle();
+              let meetingObj: any = null;
+              if (meetingId) {
+                const { data: found } = await supabaseAdmin
+                  .from("meetings")
+                  .select("id")
+                  .eq("zoom_id", meetingId)
+                  .maybeSingle();
+                meetingObj = found;
+              }
+
+              if (!meetingObj) {
+                const { data: activeFound } = await supabaseAdmin
+                  .from("meetings")
+                  .select("id")
+                  .eq("is_active", true)
+                  .maybeSingle();
+                meetingObj = activeFound;
+              }
 
               if (meetingObj) {
                 await supabaseAdmin.from("messages").insert({
