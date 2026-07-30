@@ -8,11 +8,12 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Megaphone, KeyRound, RefreshCw, Zap, Video, Eye, EyeOff, CheckCircle2, ShieldCheck, Link2, Shield, UserPlus, UserCheck, Server, Sparkles } from "lucide-react";
+import { Megaphone, KeyRound, RefreshCw, Zap, Video, Eye, EyeOff, CheckCircle2, ShieldCheck, Link2, Shield, UserPlus, UserCheck, Server, Sparkles, Send } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { syncActiveMeeting, syncUpcomingMeetings, testZoomAuth, getZoomEnvConfig, syncZoomDirectlyFromEnv } from "@/lib/meetings.functions";
 import { broadcastToApproved, registerTelegramWebhook } from "@/lib/viewer.functions";
+import { testRegistrationNotification } from "@/lib/telegram-notifier.server";
 import { useTelegramViewer } from "@/hooks/useTelegramViewer";
 
 export const Route = createFileRoute("/admin/settings")({
@@ -30,22 +31,23 @@ function SettingsPage() {
   const testZoomAuthFn = useServerFn(testZoomAuth);
   const syncZoomDirectlyFromEnvFn = useServerFn(syncZoomDirectlyFromEnv);
   const broadcastToApprovedFn = useServerFn(broadcastToApproved);
-  const registerTelegramWebhookFn = useServerFn(registerTelegramWebhook);
+  const testNotifFn = useServerFn(testRegistrationNotification);
 
   const [broadcast, setBroadcast] = useState("");
   const [zoomId, setZoomId] = useState("");
-  const [showSecret, setShowSecret] = useState(false);
+  const [showSecret, setShowSecret] = useState(true);
+  const [targetNotificationChatId, setTargetNotificationChatId] = useState("-1004310551647");
 
   // Fetch actual .env config from server
   const envConfigQuery = useQuery({ queryKey: ["zoomEnvConfig"], queryFn: () => getZoomEnvConfigFn() });
 
   // Editable / Displayed Zoom Configuration State
-  const [zoomAccountId, setZoomAccountId] = useState("Xmxl4CRXRLqrvr3WXlUqAw");
-  const [zoomClientId, setZoomClientId] = useState("KJVgvj9TQHOT5oIBkl6Z7g");
-  const [zoomClientSecret, setZoomClientSecret] = useState("z8S2uY85DqUFI2UdexFfd179MsBhcM6z");
+  const [zoomAccountId, setZoomAccountId] = useState("X0ADU72rToGb7hdnnIBkeg");
+  const [zoomClientId, setZoomClientId] = useState("o9qDabC6RPapF8IUgz3Efw");
+  const [zoomClientSecret, setZoomClientSecret] = useState("4C06H56EsMmDjMShZVGwSs6SMOSZ5ztv");
   const [zoomDefaultMeetingId, setZoomDefaultMeetingId] = useState("85651598189");
-  const [zoomRegLink, setZoomRegLink] = useState("https://us06web.zoom.us/meeting/register/xHiSkLTMQLq0an5MdrWlZw");
-  const [zoomWebhookSecret, setZoomWebhookSecret] = useState("YYJPbMz0Q6GazVd_DeBMIQ");
+  const [zoomRegLink, setZoomRegLink] = useState("https://us05web.zoom.us/j/85651598189?pwd=xxJugOAf1uy1Amwlchy4ZbshgzvoYk.1");
+  const [zoomWebhookSecret, setZoomWebhookSecret] = useState("QG6XM_lQRq25ad8Up39jtg");
 
   useEffect(() => {
     if (envConfigQuery.data) {
@@ -81,6 +83,14 @@ function SettingsPage() {
   const syncAllUpcoming = useMutation({
     mutationFn: () => syncUpcomingMeetingsFn({ data: { actorTelegramId: telegramId } }),
     onSuccess: (r) => { toast.success(`Successfully synced ${r.count} meetings from Zoom API!`); qc.invalidateQueries({ queryKey: ["meetings"] }); qc.invalidateQueries({ queryKey: ["activeMeeting"] }); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const registerTelegramWebhookFn = useServerFn(registerTelegramWebhook);
+
+  const testNotifMutation = useMutation({
+    mutationFn: () => testNotifFn({ data: { targetChatId: targetNotificationChatId } }),
+    onSuccess: (res) => toast.success(res.message),
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -388,16 +398,55 @@ function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* 5. Telegram Webhook Card */}
-      <Card className="lg:col-span-2">
+      {/* 5. Telegram Webhook & Notification Settings Card */}
+      <Card className="lg:col-span-2 border-sky-500/30 bg-sky-500/5">
         <CardHeader>
-          <div className="flex items-center gap-2"><Zap className="h-5 w-5 text-primary" /><CardTitle>Telegram webhook</CardTitle></div>
-          <CardDescription>Point the bot at this app so /start opens the right Mini App.</CardDescription>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Zap className="h-5 w-5 text-sky-400" />
+              <CardTitle>Telegram Webhook & Notification Settings</CardTitle>
+            </div>
+            <Badge variant="outline" className="border-sky-500/40 text-sky-300">
+              Live Alerts Active
+            </Badge>
+          </div>
+          <CardDescription>
+            Point the bot at this app and specify the Telegram Chat Room ID (Personal ID or Group Chat ID e.g. -1004310551647) where registration notifications should be delivered.
+          </CardDescription>
         </CardHeader>
-        <CardContent>
-          <Button variant="outline" onClick={() => registerHook.mutate()} disabled={registerHook.isPending}>
-            Register webhook for this app
-          </Button>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label className="text-xs font-semibold">Target Notification Chat Room ID</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={targetNotificationChatId}
+                  onChange={(e) => setTargetNotificationChatId(e.target.value)}
+                  placeholder="-1004310551647 or 6255415226"
+                  className="font-mono text-xs bg-background flex-1"
+                />
+                <Button
+                  size="sm"
+                  onClick={() => testNotifMutation.mutate()}
+                  disabled={testNotifMutation.isPending}
+                  className="bg-sky-600 hover:bg-sky-500 text-white text-xs shrink-0 gap-1.5"
+                >
+                  <Send className={cn("h-3.5 w-3.5", testNotifMutation.isPending && "animate-spin")} />
+                  {testNotifMutation.isPending ? "Sending..." : "🧪 Send Test Notification"}
+                </Button>
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Note: Group Chat IDs start with <code className="text-sky-300">-100...</code>. Make sure the Telegram Bot is added as a member or admin of the group.
+              </p>
+            </div>
+          </div>
+
+          <div className="pt-3 border-t border-border/50 flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">Bot Webhook URL: https://zoom-orchestrator-0hd5.onrender.com/api/public/telegram/webhook</span>
+            <Button variant="outline" size="sm" onClick={() => registerHook.mutate()} disabled={registerHook.isPending} className="text-xs">
+              Register Webhook for Mini App
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>

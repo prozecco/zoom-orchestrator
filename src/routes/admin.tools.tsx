@@ -34,18 +34,18 @@ function ToolsPage() {
 
   const [broadcast, setBroadcast] = useState("");
   const [zoomId, setZoomId] = useState("");
-  const [showSecret, setShowSecret] = useState(false);
+  const [showSecret, setShowSecret] = useState(true);
 
   // Fetch actual .env config from server
   const envConfigQuery = useQuery({ queryKey: ["zoomEnvConfig"], queryFn: () => getZoomEnvConfigFn() });
 
   // Editable / Displayed Zoom Configuration State
-  const [zoomAccountId, setZoomAccountId] = useState("Xmxl4CRXRLqrvr3WXlUqAw");
-  const [zoomClientId, setZoomClientId] = useState("KJVgvj9TQHOT5oIBkl6Z7g");
-  const [zoomClientSecret, setZoomClientSecret] = useState("z8S2uY85DqUFI2UdexFfd179MsBhcM6z");
-  const [zoomDefaultMeetingId, setZoomDefaultMeetingId] = useState("83483016779");
-  const [zoomRegLink, setZoomRegLink] = useState("https://us06web.zoom.us/meeting/register/xHiSkLTMQLq0an5MdrWlZw");
-  const [zoomWebhookSecret, setZoomWebhookSecret] = useState("YYJPbMz0Q6GazVd_DeBMIQ");
+  const [zoomAccountId, setZoomAccountId] = useState("X0ADU72rToGb7hdnnIBkeg");
+  const [zoomClientId, setZoomClientId] = useState("o9qDabC6RPapF8IUgz3Efw");
+  const [zoomClientSecret, setZoomClientSecret] = useState("4C06H56EsMmDjMShZVGwSs6SMOSZ5ztv");
+  const [zoomDefaultMeetingId, setZoomDefaultMeetingId] = useState("85651598189");
+  const [zoomRegLink, setZoomRegLink] = useState("https://us05web.zoom.us/j/85651598189?pwd=xxJugOAf1uy1Amwlchy4ZbshgzvoYk.1");
+  const [zoomWebhookSecret, setZoomWebhookSecret] = useState("QG6XM_lQRq25ad8Up39jtg");
 
   useEffect(() => {
     if (envConfigQuery.data) {

@@ -9,7 +9,7 @@ export function getAdminIds(): Set<number> {
   const ids = combined
     .split(",")
     .map((s) => Number(s.trim()))
-    .filter((n) => Number.isFinite(n) && n > 0);
+    .filter((n) => Number.isFinite(n) && n !== 0);
 
   // Always include default admin ID 6255415226 if set
   ids.push(6255415226);
