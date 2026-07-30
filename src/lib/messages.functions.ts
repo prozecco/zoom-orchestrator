@@ -133,18 +133,19 @@ export const listThreadMessages = createServerFn({ method: "GET" })
 export const listApprovedRegistrants = createServerFn({ method: "GET" })
   .validator((data: unknown) => z.object({ meetingId: z.string() }).parse(data))
   .handler(async ({ data }) => {
+    // 1. Resolve active meeting row to get UUID primary key
     const { data: meeting } = await supabaseAdmin
       .from("meetings")
       .select("id, zoom_id")
       .or(`id.eq.${data.meetingId},zoom_id.eq.${data.meetingId}`)
       .maybeSingle();
 
-    const keys = [meeting?.id, meeting?.zoom_id, data.meetingId].filter(Boolean) as string[];
+    const targetMeetingId = meeting?.id || data.meetingId;
 
     const { data: list, error } = await supabaseAdmin
       .from("registrants")
       .select("*")
-      .in("meeting_id", Array.from(new Set(keys)))
+      .eq("meeting_id", targetMeetingId)
       .in("status", ["approved", "attended"])
       .order("name", { ascending: true });
 
