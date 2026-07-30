@@ -329,6 +329,50 @@ export async function fetchZoomRegistrationQuestions(
 }
 
 /**
+ * List registrants for a meeting filtered by status (approved, pending, denied).
+ */
+export async function listZoomRegistrants(
+  meetingId: string | number,
+  status: "approved" | "pending" | "denied" = "approved",
+  custom?: Partial<ZoomCredentials>
+): Promise<any[]> {
+  const res = await zoomFetch(
+    `/meetings/${encodeURIComponent(String(meetingId))}/registrants?status=${status}&page_size=300`,
+    custom
+  );
+  if (!res.ok) {
+    const body = await res.text();
+    console.warn(`[zoom.server] listZoomRegistrants failed [${res.status}]: ${body}`);
+    return [];
+  }
+  const data = (await res.json()) as { registrants?: any[] };
+  return data.registrants ?? [];
+}
+
+/**
+ * List live or past participants for a meeting (includes join/leave timestamps and duration).
+ */
+export async function listZoomParticipants(
+  meetingId: string | number,
+  custom?: Partial<ZoomCredentials>
+): Promise<{ total_records: number; participants: any[] }> {
+  const res = await zoomFetch(
+    `/past_meetings/${encodeURIComponent(String(meetingId))}/participants?page_size=300`,
+    custom
+  );
+  if (!res.ok) {
+    const body = await res.text();
+    console.warn(`[zoom.server] listZoomParticipants failed [${res.status}]: ${body}`);
+    return { total_records: 0, participants: [] };
+  }
+  const data = (await res.json()) as { total_records?: number; participants?: any[] };
+  return {
+    total_records: data.total_records ?? (data.participants?.length || 0),
+    participants: data.participants ?? [],
+  };
+}
+
+/**
  * Register a participant for a meeting.
  */
 export async function submitZoomRegistrant(

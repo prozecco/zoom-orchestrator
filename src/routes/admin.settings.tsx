@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Megaphone, KeyRound, RefreshCw, Zap, Video, Eye, EyeOff, CheckCircle2, ShieldCheck, Link2, Shield, UserPlus, UserCheck, Server, Sparkles, Send, AlertTriangle, Clock, Check } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { syncActiveMeeting, syncUpcomingMeetings, testZoomAuth, getZoomEnvConfig, syncZoomDirectlyFromEnv } from "@/lib/meetings.functions";
+import { syncActiveMeeting, syncUpcomingMeetings, testZoomAuth, getZoomEnvConfig, syncZoomDirectlyFromEnv, syncLiveZoomData } from "@/lib/meetings.functions";
 import { broadcastToApproved, registerTelegramWebhook } from "@/lib/viewer.functions";
 import { testRegistrationNotification } from "@/lib/telegram-notifier.server";
 import { useTelegramViewer } from "@/hooks/useTelegramViewer";
@@ -231,23 +231,39 @@ function SettingsPage() {
     },
   });
 
+  const syncLiveZoomDataFn = useServerFn(syncLiveZoomData);
+
   const syncDirectlyFromEnvMutation = useMutation({
-    mutationFn: () => syncZoomDirectlyFromEnvFn(),
-    onSuccess: (saved) => {
-      toast.success(`SUCCESS! Connected & Synced Zoom Meeting "${saved.topic}" (ID: ${saved.zoom_id}) from .env!`);
+    mutationFn: async () => {
+      const res = await syncLiveZoomDataFn({ data: { meetingId: zoomDefaultMeetingId } });
+      return res as {
+        success: boolean;
+        zoom_id: string;
+        topic: string;
+        host_email: string;
+        meeting_status: string;
+        approved_registrants_count: number;
+        pending_registrants_count: number;
+        synced_registrants_db_count: number;
+        live_participants_count: number;
+      };
+    },
+    onSuccess: (res) => {
+      toast.success(`SUCCESS! Synced Meeting "${res.topic}" (${res.approved_registrants_count} Approved Regs, ${res.pending_registrants_count} Pending Regs, ${res.live_participants_count} Attendees)`);
       qc.invalidateQueries({ queryKey: ["activeMeeting"] });
       qc.invalidateQueries({ queryKey: ["meetings"] });
+      qc.invalidateQueries({ queryKey: ["registrants"] });
       setSyncModal({
         open: true,
         success: true,
-        title: "⚡ Zoom .env Direct Sync Successful!",
-        message: `Successfully connected to Zoom Server-to-Server OAuth and synced active meeting "${saved.topic}" to Supabase Database!`,
+        title: "⚡ Live Zoom Data & Registrants Synced!",
+        message: `Connected to Zoom OAuth. Synced ${res.approved_registrants_count} Approved Registrants, ${res.pending_registrants_count} Pending Registrants, and ${res.live_participants_count} Attendees directly into Supabase DB!`,
         details: {
-          topic: saved.topic,
-          zoom_id: saved.zoom_id,
-          host_email: saved.host_email ?? "sunclouds-jr@outlook.com",
-          status: saved.status ?? "started",
-          synced_at: saved.synced_at || new Date().toISOString(),
+          topic: res.topic,
+          zoom_id: res.zoom_id,
+          host_email: res.host_email,
+          status: `${res.meeting_status} (${res.approved_registrants_count} Regs / ${res.live_participants_count} Attendees)`,
+          synced_at: new Date().toISOString(),
         },
       });
     },
@@ -256,7 +272,7 @@ function SettingsPage() {
       setSyncModal({
         open: true,
         success: false,
-        title: "❌ Zoom .env Direct Sync Failed",
+        title: "❌ Zoom Live Data Sync Failed",
         message: e.message,
       });
     },

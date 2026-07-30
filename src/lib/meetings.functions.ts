@@ -277,3 +277,115 @@ export const syncZoomDirectlyFromEnv = createServerFn({ method: "POST" }).handle
 
   return saved;
 });
+
+export const syncLiveZoomData = createServerFn({ method: "POST" })
+  .validator((raw) => z.object({ meetingId: z.string().optional() }).parse(raw))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { fetchZoomMeeting, listZoomRegistrants, listZoomParticipants } = await import("./zoom.server");
+
+    const targetMeetingId = data.meetingId?.trim() || process.env.ZOOM_MEETING_ID || "85651598189";
+
+    // 1. Fetch Meeting info
+    let meeting: any = null;
+    try {
+      meeting = await fetchZoomMeeting(targetMeetingId);
+    } catch (e: any) {
+      console.warn("[syncLiveZoomData] fetchZoomMeeting:", e.message);
+    }
+
+    // 2. Fetch Approved Registrants & Pending Registrants
+    const approvedRegs = await listZoomRegistrants(targetMeetingId, "approved");
+    const pendingRegs = await listZoomRegistrants(targetMeetingId, "pending");
+
+    // 3. Fetch Participants History
+    const participantsData = await listZoomParticipants(targetMeetingId);
+
+    // 4. Save/Update Active Meeting in DB
+    await supabaseAdmin.from("meetings").update({ is_active: false }).eq("is_active", true);
+
+    const meetingRow = {
+      zoom_id: String(meeting?.id ?? targetMeetingId),
+      topic: meeting?.topic ?? "ＳＵＮＣＬＯＵＤＳ １７６６",
+      host_email: meeting?.host_email ?? "sunclouds-jr@outlook.com",
+      start_time: meeting?.start_time ?? new Date().toISOString(),
+      duration_min: meeting?.duration ?? 1440,
+      join_url: meeting?.join_url ?? "https://us05web.zoom.us/j/85651598189?pwd=xxJugOAf1uy1Amwlchy4ZbshgzvoYk.1",
+      passcode: meeting?.password ?? "1766",
+      status: meeting?.status ?? "started",
+      is_active: true,
+      raw: meeting?.raw ?? meeting ?? { mode: "live_sync" },
+      synced_at: new Date().toISOString(),
+    };
+
+    const { data: savedMeeting, error: meetingErr } = await supabaseAdmin
+      .from("meetings")
+      .upsert(meetingRow as never, { onConflict: "zoom_id" })
+      .select()
+      .single();
+
+    if (meetingErr) throw new Error(`DB Error upserting meeting: ${meetingErr.message}`);
+
+    // 5. Bulk Upsert Registrants into DB
+    let syncedRegistrantsCount = 0;
+    const dbRowsToUpsert = [
+      ...approvedRegs.map((r) => ({
+        meeting_id: savedMeeting.id,
+        email: (r.email || "").toLowerCase().trim(),
+        name: `${r.first_name || ""} ${r.last_name || ""}`.trim() || r.email || "Zoom Registrant",
+        phone: r.phone || null,
+        status: "approved",
+        registered_at: r.create_time || new Date().toISOString(),
+      })),
+      ...pendingRegs.map((r) => ({
+        meeting_id: savedMeeting.id,
+        email: (r.email || "").toLowerCase().trim(),
+        name: `${r.first_name || ""} ${r.last_name || ""}`.trim() || r.email || "Zoom Registrant",
+        phone: r.phone || null,
+        status: "pending",
+        registered_at: r.create_time || new Date().toISOString(),
+      })),
+    ].filter((item) => Boolean(item.email));
+
+    if (dbRowsToUpsert.length > 0) {
+      // Chunk upserts in batches of 100 for maximum stability
+      const chunkSize = 100;
+      for (let i = 0; i < dbRowsToUpsert.length; i += chunkSize) {
+        const chunk = dbRowsToUpsert.slice(i, i + chunkSize);
+        const { error: regErr } = await supabaseAdmin
+          .from("registrants")
+          .upsert(chunk as never, { onConflict: "email,meeting_id" });
+        if (regErr) {
+          console.warn("[syncLiveZoomData] registrants chunk upsert note:", regErr.message);
+        } else {
+          syncedRegistrantsCount += chunk.length;
+        }
+      }
+    }
+
+    return {
+      success: true,
+      zoom_id: savedMeeting.zoom_id,
+      topic: savedMeeting.topic,
+      host_email: savedMeeting.host_email,
+      meeting_status: savedMeeting.status,
+      approved_registrants_count: approvedRegs.length,
+      pending_registrants_count: pendingRegs.length,
+      synced_registrants_db_count: syncedRegistrantsCount,
+      live_participants_count: participantsData.total_records,
+      sample_approved_registrants: approvedRegs.slice(0, 5).map((r) => ({
+        name: `${r.first_name || ""} ${r.last_name || ""}`.trim(),
+        email: r.email,
+        country: r.country,
+        create_time: r.create_time,
+      })),
+      sample_live_participants: participantsData.participants.slice(0, 5).map((p) => ({
+        name: p.name,
+        email: p.user_email,
+        join_time: p.join_time,
+        leave_time: p.leave_time,
+        duration: p.duration,
+      })),
+    };
+  });
+
