@@ -10,6 +10,8 @@ const SubmitRegistrationSchema = z.object({
   name: z.string().optional(),
   email: z.string().email("Invalid email address"),
   country: z.string().optional(),
+  q1Answer: z.string().optional(),
+  q2Answer: z.string().optional(),
   phone: z.string().optional(),
   telegramUser: z.string().optional(),
   telegramId: z.number().nullable().optional(),
@@ -17,7 +19,7 @@ const SubmitRegistrationSchema = z.object({
 
 /**
  * Submits a new registrant from Telegram Mini App / Web App,
- * submits to Zoom API, upserts into Supabase DB, and triggers Telegram Notification to Admin.
+ * submits to Zoom API with custom questions, upserts into Supabase DB, and triggers Telegram Notification to Admin.
  */
 export const submitRegistration = createServerFn({ method: "POST" })
   .validator((data: unknown) => SubmitRegistrationSchema.parse(data))
@@ -42,6 +44,27 @@ export const submitRegistration = createServerFn({ method: "POST" })
     const telegramId = data.telegramId || null;
     const telegramUser = data.telegramUser || null;
 
+    // Build exact custom_questions matching Zoom Web Portal schema
+    const customQuestionsList: Array<{ title: string; value: string }> = [];
+    if (data.q1Answer) {
+      customQuestionsList.push({
+        title: "After registering, please request approval at https://t.me/ZoomApprovalBot for faster approval, or contact @ixun_z",
+        value: data.q1Answer,
+      });
+    }
+    if (data.q2Answer) {
+      customQuestionsList.push({
+        title: "Please join using the link sent to your email. The link in the email is a personal link, so it will not redirect you to the registration page. (no need to reply)",
+        value: data.q2Answer,
+      });
+    }
+    if (telegramUser) {
+      customQuestionsList.push({
+        title: "Telegram Username: @ㅤㅤ (Example: @ixun_z)",
+        value: telegramUser,
+      });
+    }
+
     // 2. Submit to Zoom API
     try {
       const { submitZoomRegistrant } = await import("./zoom.server");
@@ -50,7 +73,7 @@ export const submitRegistration = createServerFn({ method: "POST" })
         last_name: lastName || undefined,
         email,
         country,
-        custom_questions: telegramUser ? [{ title: "Telegram Username", value: telegramUser }] : undefined,
+        custom_questions: customQuestionsList.length ? customQuestionsList : undefined,
       });
     } catch (zoomErr: any) {
       console.warn("[registrants.functions] Zoom API registrant submit note:", zoomErr.message);

@@ -13,10 +13,9 @@ import { getActiveMeeting, syncActiveMeeting } from "@/lib/meetings.functions";
 import { submitRegistration, getMyRegistration } from "@/lib/registrants.functions";
 import { toast } from "sonner";
 import { useTelegram } from "@/hooks/useTelegram";
-import { User, CheckCircle2, ExternalLink, ShieldCheck, RefreshCw, Video, MessageCircle, Sparkles, Globe, Users } from "lucide-react";
+import { User, CheckCircle2, ExternalLink, RefreshCw, Video, MessageCircle, Sparkles } from "lucide-react";
 import { trackZoomJoin } from "@/lib/telegram-sync";
 import { cn } from "@/lib/utils";
-import { isAdminId } from "@/lib/admin-config";
 
 export const Route = createFileRoute("/app/")({
   ssr: false,
@@ -47,6 +46,18 @@ const COUNTRIES = [
   "United Kingdom",
   "Australia",
   "Other"
+];
+
+const CUSTOM_Q1_TITLE = "After registering, please request approval at https://t.me/ZoomApprovalBot for faster approval, or contact @ixun_z";
+const CUSTOM_Q1_ANSWERS = [
+  "หลังจากลงทะเบียนแล้ว โปรดขออนุมัติที่ https://t.me/ZoomApprovalBot เพื่อการอนุมัติที่รวดเร็วยิ่งขึ้น หรือติดต่อ @ixun_z",
+  "注册后，请前往 https://t.me/ZoomApprovalBot 提交审批申请，以便更快通过，或联系 @ixun_z。"
+];
+
+const CUSTOM_Q2_TITLE = "Please join using the link sent to your email. The link in the email is a personal link, so it will not redirect you to the registration page. (no need to reply)";
+const CUSTOM_Q2_ANSWERS = [
+  "กรุณาเข้าร่วมโดยใช้ลิงก์ที่ส่งไปยังอีเมลของคุณ ลิงก์ในอีเมลเป็นลิงก์ส่วนตัว ดังนั้นจะไม่เด้งไปยังหน้าลงทะเบียนซ้ำๆ",
+  "請透過寄到您電子郵件中的連結加入。 郵件中的連結是專屬個人連結，所以不會跳轉到註冊頁面喔。"
 ];
 
 function UnifiedAppPage() {
@@ -105,6 +116,8 @@ function UnifiedAppPage() {
   const [lastName, setLastName] = useState(user.last_name || "");
   const [email, setEmail] = useState("");
   const [country, setCountry] = useState("Thailand");
+  const [q1Answer, setQ1Answer] = useState(CUSTOM_Q1_ANSWERS[0]);
+  const [q2Answer, setQ2Answer] = useState(CUSTOM_Q2_ANSWERS[0]);
   const [submitting, setSubmitting] = useState(false);
 
   // Sync inputs with telegram user profile
@@ -138,6 +151,8 @@ function UnifiedAppPage() {
           lastName: lastName.trim(),
           email: email.trim().toLowerCase(),
           country,
+          q1Answer,
+          q2Answer,
           telegramUser: user.username ? `@${user.username}` : user.first_name ? `@${user.first_name}` : undefined,
           telegramId: user.id || null,
         },
@@ -165,24 +180,9 @@ function UnifiedAppPage() {
     openLink(personalJoinUrl);
   };
 
-  const isAdmin = user.id ? isAdminId(user.id) : false;
-
   return (
     <div className="space-y-4 max-w-lg mx-auto pb-10">
-      {/* Header bar with Admin quick link */}
-      {isAdmin && (
-        <div className="flex items-center justify-between p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs">
-          <div className="flex items-center gap-2 font-medium">
-            <ShieldCheck className="h-4 w-4 text-amber-400" />
-            <span>Admin Account Detected (@{user.username || user.id})</span>
-          </div>
-          <Button asChild size="sm" variant="outline" className="h-7 text-[11px] border-amber-500/40 text-amber-300 hover:bg-amber-500/20">
-            <Link to="/admin">Dashboard</Link>
-          </Button>
-        </div>
-      )}
-
-      {/* Active Live Session Card (Host email removed per explicit instruction) */}
+      {/* Active Live Session Card (Host email & Duplicate Admin banners removed) */}
       <Card className="border-border/60 bg-card/80 backdrop-blur-sm overflow-hidden shadow-lg">
         <CardHeader className="py-4 border-b border-border/40 bg-muted/20">
           <div className="flex items-start justify-between gap-3">
@@ -281,7 +281,7 @@ function UnifiedAppPage() {
           </CardContent>
         </Card>
       ) : (
-        /* Registration Form View matching Zoom Web Portal fields */
+        /* Registration Form View matching Zoom Web Portal fields & Custom Questions */
         <Card className="border-border/60 bg-card/80 shadow-xl">
           <CardHeader className="py-4 border-b border-border/40">
             <div className="flex items-center gap-3">
@@ -352,8 +352,45 @@ function UnifiedAppPage() {
                 </Select>
               </div>
 
+              {/* Zoom Portal Custom Question 1 */}
               <div className="space-y-1">
-                <Label htmlFor="tg" className="text-xs font-semibold">Telegram Username *</Label>
+                <Label htmlFor="customQ1" className="text-[11px] font-medium leading-tight text-muted-foreground block">
+                  {CUSTOM_Q1_TITLE}
+                </Label>
+                <Select value={q1Answer} onValueChange={setQ1Answer}>
+                  <SelectTrigger className="text-xs bg-black/20 border-border/50 h-auto py-2 min-h-[36px]">
+                    <SelectValue placeholder="Select answer" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CUSTOM_Q1_ANSWERS.map((ans, idx) => (
+                      <SelectItem key={idx} value={ans} className="text-xs">{ans}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Zoom Portal Custom Question 2 */}
+              <div className="space-y-1">
+                <Label htmlFor="customQ2" className="text-[11px] font-medium leading-tight text-muted-foreground block">
+                  {CUSTOM_Q2_TITLE}
+                </Label>
+                <Select value={q2Answer} onValueChange={setQ2Answer}>
+                  <SelectTrigger className="text-xs bg-black/20 border-border/50 h-auto py-2 min-h-[36px]">
+                    <SelectValue placeholder="Select answer" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CUSTOM_Q2_ANSWERS.map((ans, idx) => (
+                      <SelectItem key={idx} value={ans} className="text-xs">{ans}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Telegram Username Custom Question */}
+              <div className="space-y-1">
+                <Label htmlFor="tg" className="text-xs font-semibold">
+                  Telegram Username: @ (Example: @ixun_z) *
+                </Label>
                 <Input
                   id="tg"
                   readOnly
