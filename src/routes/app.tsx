@@ -5,6 +5,10 @@ import { cn } from "@/lib/utils";
 import { useTelegram } from "@/hooks/useTelegram";
 import { Button } from "@/components/ui/button";
 
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { fetchAdminUsers } from "@/lib/admin-config";
+
 export const Route = createFileRoute("/app")({
   ssr: false,
   head: () => ({ meta: [{ title: "Attendee — Meeting Hub" }] }),
@@ -21,10 +25,28 @@ function AppLayout() {
   const navigate = useNavigate();
   const { backButton, haptic, user } = useTelegram();
 
+  const fetchAdmins = useServerFn(fetchAdminUsers);
+  const adminUsersQuery = useQuery({
+    queryKey: ["adminUsers"],
+    queryFn: () => fetchAdmins(),
+    staleTime: 10000,
+  });
+
+  const adminList = adminUsersQuery.data ?? [];
   const isAdmin =
-    user.id === 6255415226 ||
+    adminList.some(
+      (a: any) =>
+        Number(a.telegram_id) === Number(user.id) ||
+        (a.telegram_username &&
+          user.username &&
+          a.telegram_username.toLowerCase().replace(/^@/, "") === user.username.toLowerCase().replace(/^@/, ""))
+    ) ||
+    Number(user.id) === 6255415226 ||
+    Number(user.id) === 6261237981 ||
+    Number(user.id) === 7905968402 ||
     user.username?.toLowerCase() === "izax619" ||
-    String(user.id) === "6255415226";
+    user.username?.toLowerCase() === "ixun_z" ||
+    user.username?.toLowerCase() === "izax_x";
 
   // Wire up Telegram BackButton when not on the root /app page
   useEffect(() => {

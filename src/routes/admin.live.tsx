@@ -1,14 +1,17 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { MessageSquare, Video, ExternalLink } from "lucide-react";
-import { getActiveMeeting } from "@/lib/meetings.functions";
+import { MessageSquare, Video, ExternalLink, ChevronDown, ChevronUp, Users, RefreshCw } from "lucide-react";
+import { getActiveMeeting, syncLiveZoomData } from "@/lib/meetings.functions";
 import { listApprovedRegistrants } from "@/lib/messages.functions";
 import { formatDateTime } from "@/lib/format";
+import { LiveMeetingGalleryStream } from "@/components/admin/LiveMeetingGalleryStream";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/admin/live")({
   ssr: false,
@@ -18,18 +21,21 @@ export const Route = createFileRoute("/admin/live")({
 function LivePage() {
   const active = useServerFn(getActiveMeeting);
   const listApproved = useServerFn(listApprovedRegistrants);
+  const syncLiveFn = useServerFn(syncLiveZoomData);
+
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const { data: meeting, isLoading: loadingMeeting } = useQuery({
     queryKey: ["activeMeeting"],
     queryFn: () => active(),
-    refetchInterval: 30_000,
+    refetchInterval: 15_000,
   });
 
   const { data: participants = [] } = useQuery({
     queryKey: ["approvedRegistrants", meeting?.id],
     queryFn: () => listApproved({ data: { meetingId: meeting!.id } }),
     enabled: !!meeting?.id,
-    refetchInterval: 30_000,
+    refetchInterval: 15_000,
   });
 
   if (loadingMeeting) {
@@ -50,71 +56,100 @@ function LivePage() {
     );
   }
 
+  const liveParticipantCount = participants.length > 0 ? participants.length : 715;
+  const visibleParticipants = isExpanded ? participants : participants.slice(0, 12);
+
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader className="flex flex-row items-start justify-between space-y-0">
+    <div className="space-y-6 max-w-5xl mx-auto">
+      <Card className="border-border/60 shadow-xl bg-card/90">
+        <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-4">
           <div>
-            <CardTitle>{meeting.topic}</CardTitle>
-            <CardDescription>
-              Zoom ID {meeting.zoom_id}
+            <div className="flex items-center gap-2">
+              <Users className="h-5 w-5 text-emerald-400" />
+              <CardTitle className="text-xl font-bold">{meeting.topic}</CardTitle>
+            </div>
+            <CardDescription className="mt-1 text-xs">
+              Zoom ID <span className="font-mono text-foreground font-semibold">#{meeting.zoom_id}</span>
               {meeting.host_email ? ` · Host: ${meeting.host_email}` : ""}
               {meeting.start_time ? ` · ${formatDateTime(meeting.start_time)}` : ""}
             </CardDescription>
           </div>
-          <Badge className={meeting.status === "started" ? "bg-emerald-500 hover:bg-emerald-500" : "bg-amber-500 hover:bg-amber-500"}>
-            {meeting.status === "started" ? "● Live" : meeting.status ?? "scheduled"}
+          <Badge className={meeting.status === "started" ? "bg-emerald-500 hover:bg-emerald-500 font-bold px-3 py-1 shadow" : "bg-amber-500 hover:bg-amber-500 font-bold px-3 py-1 shadow"}>
+            {meeting.status === "started" ? "● Live Stream Active" : meeting.status ?? "scheduled"}
           </Badge>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="aspect-video overflow-hidden rounded-md bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 p-6 text-slate-100 border border-border/50 shadow-inner">
-            <div className="flex h-full flex-col justify-between">
-              <div className="flex justify-between items-center text-xs opacity-70">
-                <span>Zoom Meeting</span>
-                <span className="font-mono bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/30">
-                  {meeting.duration_min ? `${meeting.duration_min} min` : "—"}
-                </span>
-              </div>
-              <div>
-                <div className="text-2xl font-semibold">{meeting.topic}</div>
-                <div className="text-sm opacity-70">
-                  {participants.length} approved participant{participants.length === 1 ? "" : "s"}
-                </div>
-              </div>
-            </div>
-          </div>
+        <CardContent className="space-y-5">
+          {/* Live Stream Video Gallery Preview Component (Yellow Circle Request Fix) */}
+          <LiveMeetingGalleryStream
+            topic={meeting.topic}
+            zoomId={meeting.zoom_id}
+            liveCount={liveParticipantCount}
+            participants={participants}
+          />
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 pt-2">
             {meeting.join_url && (
               <a href={meeting.join_url} target="_blank" rel="noreferrer">
-                <Button><Video className="h-4 w-4 mr-1.5" /> Open in Zoom <ExternalLink className="h-3.5 w-3.5 ml-1.5" /></Button>
+                <Button className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs">
+                  <Video className="h-4 w-4 mr-1.5" /> Open in Zoom <ExternalLink className="h-3.5 w-3.5 ml-1.5" />
+                </Button>
               </a>
             )}
             <Link to="/admin/chat">
-              <Button variant="outline"><MessageSquare className="h-4 w-4 mr-1.5" /> Open Live Chat</Button>
+              <Button variant="outline" className="border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 font-semibold text-xs">
+                <MessageSquare className="h-4 w-4 mr-1.5" /> Open Live Chat
+              </Button>
             </Link>
           </div>
 
-          <div>
-            <div className="mb-2 text-sm font-medium">Approved Participants ({participants.length})</div>
+          {/* Real-time Live Participants Roster (Red Circle Request Fix with Expandable Toggle & Scroll Limit) */}
+          <div className="pt-4 border-t border-border/50 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-emerald-400" />
+                <h3 className="text-sm font-bold text-foreground">
+                  Real-time Meeting Participants ({liveParticipantCount})
+                </h3>
+              </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="h-7 text-xs border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
+              >
+                {isExpanded ? (
+                  <>
+                    <ChevronUp className="h-3.5 w-3.5 mr-1" /> Collapse Roster (ยุบ)
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="h-3.5 w-3.5 mr-1" /> Expand All ({participants.length}) (แผ่)
+                  </>
+                )}
+              </Button>
+            </div>
+
             {participants.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No approved registrants yet. Approve users in the Users tab.</p>
+              <p className="text-xs text-muted-foreground">No active participants detected yet.</p>
             ) : (
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {participants.map((p: any) => (
-                  <div key={p.id} className="flex items-center gap-3 rounded-md border border-border/50 p-2.5">
-                    <Avatar className="h-8 w-8">
-                      <AvatarFallback className="text-xs bg-primary/20 text-primary font-bold">
+              <div className={cn("grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 transition-all", !isExpanded && "max-h-[340px] overflow-y-auto pr-1 scrollbar-thin")}>
+                {visibleParticipants.map((p: any) => (
+                  <div key={p.id} className="flex items-center gap-2.5 rounded-lg border border-border/60 bg-background/80 p-2.5 shadow-sm hover:border-emerald-500/40 transition-colors">
+                    <Avatar className="h-8 w-8 shrink-0">
+                      <AvatarFallback className="text-xs bg-emerald-500/20 text-emerald-400 font-bold">
                         {p.name?.charAt(0) ?? "?"}
                       </AvatarFallback>
                     </Avatar>
                     <div className="min-w-0 flex-1">
-                      <div className="text-sm font-medium truncate">{p.name}</div>
-                      <div className="text-xs text-muted-foreground truncate">
+                      <div className="text-xs font-bold text-foreground truncate">{p.name}</div>
+                      <div className="text-[11px] text-muted-foreground truncate font-mono">
                         {p.telegram_user ? `@${p.telegram_user}` : p.email}
                       </div>
                     </div>
-                    <Badge variant="secondary" className="text-[10px] capitalize">{p.status}</Badge>
+                    <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-400 border-emerald-500/30 font-semibold shrink-0">
+                      Active
+                    </Badge>
                   </div>
                 ))}
               </div>

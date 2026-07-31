@@ -9,13 +9,14 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Megaphone, KeyRound, RefreshCw, Zap, Video, Eye, EyeOff, CheckCircle2, ShieldCheck, Link2, Shield, UserPlus, UserCheck, Server, Sparkles, Send, AlertTriangle, Clock, Check } from "lucide-react";
+import { Megaphone, KeyRound, RefreshCw, Zap, Video, Eye, EyeOff, CheckCircle2, ShieldCheck, Link2, Shield, UserPlus, UserCheck, Server, Sparkles, Send, AlertTriangle, Clock, Check, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { syncActiveMeeting, syncUpcomingMeetings, testZoomAuth, getZoomEnvConfig, syncZoomDirectlyFromEnv, syncLiveZoomData } from "@/lib/meetings.functions";
 import { broadcastToApproved, registerTelegramWebhook } from "@/lib/viewer.functions";
 import { testRegistrationNotification } from "@/lib/telegram-notifier.server";
 import { useTelegramViewer } from "@/hooks/useTelegramViewer";
+import { fetchAdminUsers, addAdminUser, removeAdminUser } from "@/lib/admin-config";
 
 export const Route = createFileRoute("/admin/settings")({
   ssr: false,
@@ -79,13 +80,44 @@ function SettingsPage() {
     }
   }, [envConfigQuery.data]);
 
-  // Admin Management State
-  const [adminList, setAdminList] = useState<Array<{ id: number; username: string; role: string }>>([
-    { id: 6255415226, username: "@izax619", role: "Super Admin (Owner)" },
-    { id: -1004310551647, username: "Notification Channel", role: "Bot Channel Target" },
-  ]);
+  // Admin Management Query & Mutations
+  const fetchAdminUsersFn = useServerFn(fetchAdminUsers);
+  const addAdminUserFn = useServerFn(addAdminUser);
+  const removeAdminUserFn = useServerFn(removeAdminUser);
+
+  const adminUsersQuery = useQuery({
+    queryKey: ["adminUsers"],
+    queryFn: () => fetchAdminUsersFn(),
+  });
+
   const [newAdminId, setNewAdminId] = useState("");
   const [newAdminUser, setNewAdminUser] = useState("");
+
+  const addAdminMutation = useMutation({
+    mutationFn: (params: { telegramId: number; username?: string }) =>
+      addAdminUserFn({ data: params }),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["adminUsers"] });
+      const adminObj = data as any;
+      toast.success(`Admin access granted to ${adminObj?.telegram_username || "User"} (ID: ${adminObj?.telegram_id || ""})`);
+      setNewAdminId("");
+      setNewAdminUser("");
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to add admin user");
+    },
+  });
+
+  const removeAdminMutation = useMutation({
+    mutationFn: (id: string) => removeAdminUserFn({ data: { id } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["adminUsers"] });
+      toast.success("Admin access revoked");
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to revoke admin access");
+    },
+  });
 
   const send = useMutation({
     mutationFn: () => broadcastToApprovedFn({ data: { text: broadcast, actorTelegramId: telegramId ?? 0 } }),
@@ -313,14 +345,10 @@ function SettingsPage() {
       toast.error("Invalid Telegram ID format");
       return;
     }
-    setAdminList((prev) => [
-      ...prev,
-      { id: parsedId, username: newAdminUser ? `@${newAdminUser.replace(/^@/, "")}` : "Admin User", role: "Moderator" },
-    ]);
-    toast.success(`Admin access granted to Telegram ID ${parsedId}`);
-    setNewAdminId("");
-    setNewAdminUser("");
+    addAdminMutation.mutate({ telegramId: parsedId, username: newAdminUser });
   };
+
+  const adminUsersList = adminUsersQuery.data ?? [];
 
   return (
     <div className="grid gap-4 lg:grid-cols-2 pb-12">
@@ -476,7 +504,7 @@ function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* 2. Admin Management Card */}
+      {/* 2. Admin Management Card (Persisted to Supabase DB) */}
       <Card className="lg:col-span-2 border-amber-500/30 bg-amber-500/5">
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -485,27 +513,41 @@ function SettingsPage() {
               <CardTitle>Admin User Management</CardTitle>
             </div>
             <Badge variant="outline" className="border-amber-500/40 text-amber-500 font-medium text-xs px-2.5 py-0.5">
-              Authorized Admins ({adminList.length})
+              Authorized Admins ({adminUsersList.length})
             </Badge>
           </div>
           <CardDescription>
-            Manage Telegram IDs that have full access to the Admin Dashboard and Orchestrator controls.
+            Manage Telegram IDs that have full access to the Admin Dashboard and Orchestrator controls. Saved directly in Supabase Database.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-2 sm:grid-cols-2">
-            {adminList.map((adm) => (
-              <div key={adm.id} className="flex items-center justify-between p-3 rounded-lg border border-border bg-background text-xs">
+            {adminUsersList.map((adm: any) => (
+              <div key={adm.id || adm.telegram_id} className="flex items-center justify-between p-3 rounded-lg border border-border bg-background text-xs">
                 <div className="flex items-center gap-2 font-medium">
-                  <UserCheck className="h-4 w-4 text-amber-500" />
+                  <UserCheck className="h-4 w-4 text-amber-500 shrink-0" />
                   <div>
-                    <div className="font-semibold">{adm.username}</div>
-                    <div className="text-[11px] text-muted-foreground font-mono">ID: {adm.id}</div>
+                    <div className="font-semibold text-foreground">{adm.telegram_username || `User ${adm.telegram_id}`}</div>
+                    <div className="text-[11px] text-muted-foreground font-mono">ID: {adm.telegram_id}</div>
                   </div>
                 </div>
-                <Badge variant="secondary" className="text-[10px] font-normal">
-                  {adm.role}
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary" className="text-[10px] font-normal">
+                    {adm.role || (Number(adm.telegram_id) === 6255415226 ? "Super Admin (Owner)" : "Authorized Admin")}
+                  </Badge>
+                  {adm.id && Number(adm.telegram_id) !== 6255415226 && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removeAdminMutation.mutate(adm.id)}
+                      disabled={removeAdminMutation.isPending}
+                      className="h-6 w-6 text-muted-foreground hover:text-rose-400"
+                      title="Revoke Admin Access"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -527,8 +569,13 @@ function SettingsPage() {
                 onChange={(e) => setNewAdminUser(e.target.value)}
                 className="font-mono text-xs bg-background flex-1"
               />
-              <Button size="sm" onClick={handleAddAdmin} className="bg-amber-600 hover:bg-amber-500 text-white text-xs">
-                Add Admin
+              <Button
+                size="sm"
+                onClick={handleAddAdmin}
+                disabled={addAdminMutation.isPending}
+                className="bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold"
+              >
+                {addAdminMutation.isPending ? "Adding..." : "Add Admin"}
               </Button>
             </div>
           </div>
