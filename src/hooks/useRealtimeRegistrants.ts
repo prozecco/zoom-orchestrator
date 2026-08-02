@@ -1,9 +1,8 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/lib/supabase";
 import { listRegistrants } from "@/lib/registrants.functions";
-import { REALTIME_CHANNELS, REALTIME_EVENTS } from "@/lib/realtime-config";
 import { toast } from "sonner";
 
 interface RegistrantRow {
@@ -22,57 +21,62 @@ interface RegistrantRow {
 /**
  * Admin Dashboard Real-time Registrants Hook
  * 
- * Combines:
- * 1. Initial data fetch via server function (useQuery)
- * 2. Live Supabase Realtime subscription for INSERT/UPDATE/DELETE on registrants table
+ * SUBSCRIBES to Supabase Realtime on 'registrants' table.
+ * When ANY insert/update/delete happens, React Query cache updates instantly.
  * 
- * When a new registrant signs up (via Zoom Web Portal or Telegram Mini App),
- * the admin list updates INSTANTLY without pressing Sync.
- * 
- * Usage:
- * ```tsx
- * const { data, isLoading, isLive } = useRealtimeRegistrants();
- * ```
+ * DEBUG: Open browser console and run: window.checkRealtime()
  */
 export function useRealtimeRegistrants() {
   const listRegs = useServerFn(listRegistrants);
   const queryClient = useQueryClient();
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<"connecting" | "connected" | "error">("connecting");
+  const [lastEvent, setLastEvent] = useState<string | null>(null);
 
   // 1. Initial fetch via server function
   const query = useQuery({
     queryKey: ["registrants"],
-    queryFn: () => listRegs(),
-    // ❌ Removed polling — Realtime handles live updates
-    // refetchInterval: 5000,
-    staleTime: Infinity, // Trust Realtime to keep cache fresh
+    queryFn: async () => {
+      console.log("[useRealtimeRegistrants] Fetching initial data...");
+      const data = await listRegs();
+      console.log("[useRealtimeRegistrants] Fetched", data?.length || 0, "registrants");
+      return data;
+    },
+    staleTime: Infinity,
+    refetchOnWindowFocus: false, // Realtime handles updates
   });
 
   // 2. Subscribe to Supabase Realtime
   useEffect(() => {
-    // Only run in browser
     if (typeof window === "undefined") return;
 
+    console.log("[useRealtimeRegistrants] Setting up Realtime subscription...");
+    setConnectionStatus("connecting");
+
     const channel = supabase
-      .channel(REALTIME_CHANNELS.ADMIN_REGISTRANTS)
+      .channel("admin-registrants-v2")
       .on(
         "postgres_changes",
         {
-          event: "*", // Listen to INSERT, UPDATE, DELETE
+          event: "*",
           schema: "public",
-          table: REALTIME_EVENTS.REGISTRANTS_TABLE,
+          table: "registrants",
         },
         (payload) => {
+          console.log("[Realtime] Event received:", payload.eventType, payload);
+          setLastEvent(`${payload.eventType} at ${new Date().toLocaleTimeString()}`);
+
           const currentData = queryClient.getQueryData<RegistrantRow[]>(["registrants"]) ?? [];
 
           if (payload.eventType === "INSERT") {
             const newRow = payload.new as RegistrantRow;
-            // Avoid duplicates
             const exists = currentData.some((r) => r.id === newRow.id);
             if (!exists) {
               queryClient.setQueryData(["registrants"], [newRow, ...currentData]);
-              // Optional: subtle toast for new registration
               toast.info(`📝 มีผู้ลงทะเบียนใหม่: ${newRow.name}`, { duration: 3000 });
+              console.log("[Realtime] INSERT processed:", newRow.name);
+            } else {
+              console.log("[Realtime] INSERT ignored (duplicate):", newRow.id);
             }
           }
 
@@ -83,45 +87,62 @@ export function useRealtimeRegistrants() {
             const nextData = currentData.map((r) =>
               r.id === updatedRow.id ? { ...r, ...updatedRow } : r
             );
+
+            // If row not in current cache, add it (edge case)
+            if (!currentData.some((r) => r.id === updatedRow.id)) {
+              nextData.unshift(updatedRow);
+            }
+
             queryClient.setQueryData(["registrants"], nextData);
 
-            // Toast on status change
             if (oldRow.status !== updatedRow.status) {
-              const statusEmoji = updatedRow.status === "approved" ? "✅" : updatedRow.status === "denied" ? "❌" : "📝";
-              toast.info(`${statusEmoji} สถานะ ${updatedRow.name} เปลี่ยนเป็น ${updatedRow.status}`, { duration: 2500 });
+              const emoji = updatedRow.status === "approved" ? "✅" : updatedRow.status === "denied" ? "❌" : "📝";
+              toast.info(`${emoji} ${updatedRow.name}: ${oldRow.status} → ${updatedRow.status}`, { duration: 2500 });
             }
+            console.log("[Realtime] UPDATE processed:", updatedRow.id, updatedRow.status);
           }
 
           else if (payload.eventType === "DELETE") {
             const deletedRow = payload.old as RegistrantRow;
             const nextData = currentData.filter((r) => r.id !== deletedRow.id);
             queryClient.setQueryData(["registrants"], nextData);
+            console.log("[Realtime] DELETE processed:", deletedRow.id);
           }
         }
       )
-      .subscribe((status) => {
+      .subscribe((status, err) => {
+        console.log("[Realtime] Subscription status:", status, err ? "Error: " + err.message : "");
         if (status === "SUBSCRIBED") {
-          console.log("[Realtime] Admin registrants channel connected ✅");
-        } else if (status === "CLOSED" || status === "CHANNEL_ERROR") {
-          console.warn("[Realtime] Admin channel disconnected:", status);
+          setConnectionStatus("connected");
+          console.log("[Realtime] ✅ Channel connected successfully");
+        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          setConnectionStatus("error");
+          console.error("[Realtime] ❌ Channel error:", status, err);
+          toast.error("Realtime connection failed. Falling back to manual sync.");
         }
       });
 
     channelRef.current = channel;
 
     return () => {
+      console.log("[Realtime] Cleaning up channel...");
       channel.unsubscribe();
       supabase.removeChannel(channel);
       channelRef.current = null;
-      console.log("[Realtime] Admin registrants channel cleaned up");
+      setConnectionStatus("connecting");
     };
   }, [queryClient]);
+
+  // 3. Fallback: if Realtime fails, show warning
+  const isLive = connectionStatus === "connected";
 
   return {
     data: query.data,
     isLoading: query.isLoading,
     isError: query.isError,
     error: query.error,
-    isLive: !!channelRef.current,
+    isLive,
+    connectionStatus,
+    lastEvent,
   };
 }

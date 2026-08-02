@@ -12,10 +12,10 @@ import { RegistrantProfileSheet } from "@/components/admin/RegistrantProfile";
 import { MemberIdConfigDialog } from "@/components/admin/MemberIdConfigDialog";
 import { AttendanceManagementSheet } from "@/components/admin/AttendanceManagementSheet";
 import type { Registrant } from "@/lib/mock-data";
-import { listRegistrants, updateRegistrantStatus, bulkUpdateStatus } from "@/lib/registrants.functions";
+import { updateRegistrantStatus, bulkUpdateStatus } from "@/lib/registrants.functions";
 import { getActiveMeeting } from "@/lib/meetings.functions";
 import { formatBangkokRegistrationTime } from "@/lib/time-formatter";
-import { Search, Hash, Clock, Smartphone, Globe, Check, X, AlertTriangle, CheckCircle2, UserCheck, UserX, Users, RefreshCw, Radio } from "lucide-react";
+import { Search, Hash, Clock, Smartphone, Globe, Check, X, CheckCircle2, UserCheck, UserX, Users, RefreshCw, Radio, PauseCircle } from "lucide-react";
 import { syncLiveZoomData } from "@/lib/meetings.functions";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -27,60 +27,67 @@ export const Route = createFileRoute("/admin/registrants")({
   component: RegistrantsPage,
 });
 
-// Unified Vibrant Status Colors for User Cards & Badges
+// ─── Status Colors ─────────────────────────────────────────────────────────
 const statusColor: Record<string, string> = {
-  pending: "bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold",
-  on_hold: "bg-violet-500/20 text-violet-300 border border-violet-500/40 font-bold",
-  approved: "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold",
-  attended: "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold",
-  rejected: "bg-rose-500/20 text-rose-300 border border-rose-500/40 font-bold",
-  denied: "bg-rose-500/20 text-rose-300 border border-rose-500/40 font-bold",
-  cancelled: "bg-slate-500/20 text-slate-300 border border-slate-500/40 font-bold",
-  blacklisted: "bg-rose-950/60 text-rose-400 border border-rose-600/60 font-bold",
+  pending:     "bg-amber-500/15 text-amber-600 border-amber-500/30",
+  on_hold:     "bg-violet-500/15 text-violet-600 border-violet-500/30",
+  approved:    "bg-emerald-500/15 text-emerald-600 border-emerald-500/30",
+  attended:    "bg-emerald-500/15 text-emerald-600 border-emerald-500/30",
+  rejected:    "bg-rose-500/15 text-rose-600 border-rose-500/30",
+  denied:      "bg-rose-500/15 text-rose-600 border-rose-500/30",
+  cancelled:   "bg-slate-500/15 text-slate-600 border-slate-500/30",
+  blacklisted: "bg-rose-950/40 text-rose-700 border-rose-600/40",
 };
 
-// Vibrant Filter Chips with Status Color Matching
+// ─── Filter Chips ──────────────────────────────────────────────────────────
 const filterChips = [
-  { 
-    id: "all-pending", 
-    label: "All Pending", 
-    activeStyle: "bg-amber-500/25 border-amber-500 text-amber-300 font-bold shadow-md shadow-amber-500/20",
-    filter: (r: Registrant) => r.status === "pending" 
+  {
+    id: "all-pending",
+    label: "Pending",
+    icon: Clock,
+    activeStyle: "bg-amber-500 text-white border-amber-500 shadow-md shadow-amber-500/25",
+    filter: (r: Registrant) => r.status === "pending",
   },
-  { 
-    id: "new", 
-    label: "New (≤3d)", 
-    activeStyle: "bg-sky-500/25 border-sky-500 text-sky-300 font-bold shadow-md shadow-sky-500/20",
-    filter: (r: Registrant) => new Date(r.registeredAt) >= new Date(Date.now() - 3 * 24 * 60 * 60 * 1000) 
+  {
+    id: "new",
+    label: "New ≤3d",
+    icon: CheckCircle2,
+    activeStyle: "bg-sky-500 text-white border-sky-500 shadow-md shadow-sky-500/25",
+    filter: (r: Registrant) =>
+      new Date(r.registeredAt) >= new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
   },
-  { 
-    id: "on-hold", 
-    label: "On Hold (>3d)", 
-    activeStyle: "bg-violet-500/25 border-violet-500 text-violet-300 font-bold shadow-md shadow-violet-500/20",
-    filter: (r: Registrant) => r.status === "pending" && new Date(r.registeredAt) < new Date(Date.now() - 3 * 24 * 60 * 60 * 1000) 
+  {
+    id: "on-hold",
+    label: "On Hold",
+    icon: PauseCircle,
+    activeStyle: "bg-violet-500 text-white border-violet-500 shadow-md shadow-violet-500/25",
+    filter: (r: Registrant) => r.status === "on_hold",
   },
-  { 
-    id: "approved", 
-    label: "Approved", 
-    activeStyle: "bg-emerald-500/25 border-emerald-500 text-emerald-300 font-bold shadow-md shadow-emerald-500/20",
-    filter: (r: Registrant) => r.status === "approved" || r.status === "attended" 
+  {
+    id: "approved",
+    label: "Approved",
+    icon: CheckCircle2,
+    activeStyle: "bg-emerald-500 text-white border-emerald-500 shadow-md shadow-emerald-500/25",
+    filter: (r: Registrant) => r.status === "approved" || r.status === "attended",
   },
-  { 
-    id: "denied", 
-    label: "Denied", 
-    activeStyle: "bg-rose-500/25 border-rose-500 text-rose-300 font-bold shadow-md shadow-rose-500/20",
-    filter: (r: Registrant) => r.status === "denied" || r.status === "rejected" || r.status === "blacklisted" 
+  {
+    id: "denied",
+    label: "Denied",
+    icon: X,
+    activeStyle: "bg-rose-500 text-white border-rose-500 shadow-md shadow-rose-500/25",
+    filter: (r: Registrant) =>
+      r.status === "denied" || r.status === "rejected" || r.status === "blacklisted",
   },
-  { 
-    id: "all", 
-    label: "All Users", 
-    activeStyle: "bg-slate-700/60 border-slate-400 text-white font-bold shadow-md",
-    filter: () => true 
+  {
+    id: "all",
+    label: "All",
+    icon: Users,
+    activeStyle: "bg-slate-700 text-white border-slate-600 shadow-md",
+    filter: () => true,
   },
 ];
 
 function RegistrantsPage() {
-  const listRegs = useServerFn(listRegistrants);
   const getActive = useServerFn(getActiveMeeting);
   const updateStatusFn = useServerFn(updateRegistrantStatus);
   const bulkUpdateStatusFn = useServerFn(bulkUpdateStatus);
@@ -94,102 +101,123 @@ function RegistrantsPage() {
   const [selectedRegistrant, setSelectedRegistrant] = useState<Registrant | null>(null);
   const [activeMeetingOnly, setActiveMeetingOnly] = useState(true);
 
-  // ✅ REPLACED: useRealtimeRegistrants instead of polling useQuery
-  const { data: registrantsData, isLoading, isLive } = useRealtimeRegistrants();
+  // Realtime hook
+  const {
+    data: registrantsData,
+    isLoading,
+    isLive,
+    connectionStatus,
+    lastEvent,
+  } = useRealtimeRegistrants();
 
-  // Active meeting still polls lightly (meeting data rarely changes)
+  // Active meeting (light polling)
   const activeMeetingQuery = useQuery({
     queryKey: ["active-meeting"],
     queryFn: () => getActive(),
-    refetchInterval: 30000, // Reduced from 15000 to 30s — meeting info rarely changes
+    refetchInterval: 30000,
   });
   const activeMeeting = activeMeetingQuery.data;
 
-  // Live Sync Mutation (manual fallback)
+  // ─── Mutations ────────────────────────────────────────────────────────────
   const liveSyncMutation = useMutation({
     mutationFn: () => syncLiveFn({ data: {} }),
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["registrants"] });
       qc.invalidateQueries({ queryKey: ["active-meeting"] });
-      qc.invalidateQueries({ queryKey: ["approvedRegistrants"] });
       toast.success(
-        `ซิงค์ข้อมูลสดจาก Zoom API เรียบร้อย! ดึงรายชื่ออนุมัติ ${data.approved_registrants_count} คน และรออนุมัติ ${data.pending_registrants_count} คน`
+        `Synced! Approved: ${data.approved_registrants_count}, Pending: ${data.pending_registrants_count}`
       );
     },
-    onError: (err: any) => {
-      toast.error(`เกิดข้อผิดพลาดในการซิงค์ข้อมูล: ${err.message}`);
-    },
+    onError: (err: any) => toast.error(`Sync failed: ${err.message}`),
   });
 
-  // Single approval/denial mutation
   const updateMutation = useMutation({
     mutationFn: (params: { id: string; status: "approved" | "denied" | "pending" | "on_hold" }) =>
       updateStatusFn({ data: params }),
-    onSuccess: (_, variables) => {
+    onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["registrants"] });
-      qc.invalidateQueries({ queryKey: ["approvedRegistrants"] });
-      toast.success(
-        variables.status === "approved"
-          ? "อนุมัติผู้ใช้เรียบร้อยแล้ว ✅"
-          : "ปฏิเสธการลงทะเบียนเรียบร้อย ❌"
-      );
+      toast.success(vars.status === "approved" ? "Approved ✅" : "Denied ❌");
     },
-    onError: (err: any) => {
-      toast.error(`เกิดข้อผิดพลาด: ${err.message}`);
-    },
+    onError: (err: any) => toast.error(err.message),
   });
 
-  // Bulk approval/denial mutation
   const bulkMutation = useMutation({
     mutationFn: (params: { ids: string[]; status: "approved" | "denied" }) =>
       bulkUpdateStatusFn({ data: params }),
-    onSuccess: (res, variables) => {
+    onSuccess: (res, vars) => {
       qc.invalidateQueries({ queryKey: ["registrants"] });
-      qc.invalidateQueries({ queryKey: ["approvedRegistrants"] });
       setSelectedIds(new Set());
-      toast.success(
-        variables.status === "approved"
-          ? `อนุมัติผู้ใช้ทั้ง ${res.updated} คนเรียบร้อยแล้ว ✅`
-          : `ปฏิเสธผู้ใช้ทั้ง ${res.updated} คนเรียบร้อย ❌`
-      );
+      toast.success(`${vars.status === "approved" ? "Approved" : "Denied"} ${res.updated} users`);
     },
-    onError: (err: any) => {
-      toast.error(`เกิดข้อผิดพลาดในการอนุมัติกลุ่ม: ${err.message}`);
-    },
+    onError: (err: any) => toast.error(err.message),
   });
 
-  const allLive: (Registrant & { meeting_id: string | null })[] = (registrantsData ?? []).map((dbR: any) => ({
-    id: dbR.id,
-    name: dbR.name,
-    telegramUser: dbR.telegram_user ? `@${dbR.telegram_user.replace(/^@/, "")}` : "@unknown",
-    email: dbR.email,
-    phone: dbR.phone ?? "",
-    status: (dbR.status as Registrant["status"]) || "pending",
-    countryCode: "TH",
-    countryFlag: "🇹🇭",
-    registeredAt: dbR.registered_at,
-    source: dbR.telegram_id ? "telegram_miniapp" : "zoom_web",
-    meeting_id: dbR.meeting_id,
-  }));
+  // ─── Data Mapping (FIXED: correct source detection) ──────────────────────
+  /**
+   * SOURCE DETECTION LOGIC (CORRECTED):
+   * 
+   * telegram_id  → comes from Telegram Mini App initDataUnsafe.user.id (number)
+   * telegram_user → comes from custom question in registration form (user-typed)
+   * 
+   * Therefore:
+   * - telegram_id IS NOT NULL  → Source: Telegram Mini App (100% certain)
+   * - telegram_id IS NULL      → Source: Zoom Web Portal (even if telegram_user exists)
+   * 
+   * Why? Because Zoom Web Portal users can type any @username in custom questions,
+   * but only Mini App users have their actual telegram_id from Telegram API.
+   */
+  const allLive: (Registrant & { meeting_id: string | null })[] =
+    (registrantsData ?? []).map((dbR: any) => {
+      // CORRECT: Check telegram_id (numeric ID from Telegram API), not telegram_user
+      const hasTelegramId = dbR.telegram_id != null && dbR.telegram_id !== 0;
 
-  const registrantsList = activeMeetingOnly && activeMeeting
-    ? allLive.filter((r) => !r.meeting_id || r.meeting_id === activeMeeting.id || r.meeting_id === activeMeeting.zoom_id)
-    : allLive;
+      // Source is determined by telegram_id presence
+      const source = hasTelegramId ? "telegram_miniapp" : "zoom_web";
 
-  // Modals for Member ID Settings and Attendance Management
-  const [memberIdConfigOpen, setMemberIdConfigOpen] = useState(false);
-  const [attendanceSheetOpen, setAttendanceSheetOpen] = useState(false);
+      // telegram_user may exist from custom question for BOTH sources
+      const telegramUser = dbR.telegram_user
+        ? `@${dbR.telegram_user.replace(/^@/, "")}`
+        : hasTelegramId
+        ? `@user_${dbR.telegram_id}`
+        : "—";
 
+      return {
+        id: dbR.id,
+        name: dbR.name || "Unknown",
+        telegramUser,
+        email: dbR.email || "—",
+        phone: dbR.phone ?? "",
+        status: (dbR.status as Registrant["status"]) || "pending",
+        countryCode: "TH",
+        countryFlag: "🇹🇭",
+        registeredAt: dbR.registered_at,
+        source, // "telegram_miniapp" or "zoom_web"
+        meeting_id: dbR.meeting_id,
+      };
+    });
+
+  const registrantsList =
+    activeMeetingOnly && activeMeeting
+      ? allLive.filter(
+          (r) =>
+            !r.meeting_id ||
+            r.meeting_id === activeMeeting.id ||
+            r.meeting_id === activeMeeting.zoom_id
+        )
+      : allLive;
+
+  // ─── Filter & Search ──────────────────────────────────────────────────────
   const filtered = registrantsList.filter((r) => {
     const matchesSearch = [r.name, r.telegramUser, r.email, r.countryCode].some((f) =>
       f.toLowerCase().includes(q.toLowerCase())
     );
-    const activeFilterFn = filterChips.find((f) => f.id === activeFilter)?.filter || (() => true);
+    const activeFilterFn =
+      filterChips.find((f) => f.id === activeFilter)?.filter || (() => true);
     return matchesSearch && activeFilterFn(r);
   });
 
   const toggleSelectAll = () => {
-    if (selectedIds.size === filtered.length) {
+    if (selectedIds.size === filtered.length && filtered.length > 0) {
       setSelectedIds(new Set());
     } else {
       setSelectedIds(new Set(filtered.map((r) => r.id)));
@@ -206,40 +234,50 @@ function RegistrantsPage() {
   const counts = {
     total: registrantsList.length,
     pending: registrantsList.filter((r) => r.status === "pending").length,
+    onHold: registrantsList.filter((r) => r.status === "on_hold").length,
     approved: registrantsList.filter((r) => r.status === "approved" || r.status === "attended").length,
     denied: registrantsList.filter((r) => r.status === "denied" || r.status === "rejected" || r.status === "blacklisted").length,
   };
 
-  const handleQuickApprove = (id: string, name: string) => {
-    updateMutation.mutate({ id, status: "approved" });
-  };
+  const handleQuickApprove = (id: string) => updateMutation.mutate({ id, status: "approved" });
+  const handleQuickDeny = (id: string) => updateMutation.mutate({ id, status: "denied" });
+  const handleQuickOnHold = (id: string) => updateMutation.mutate({ id, status: "on_hold" });
 
-  const handleQuickDeny = (id: string, name: string) => {
-    updateMutation.mutate({ id, status: "denied" });
-  };
+  // ─── Modals ───────────────────────────────────────────────────────────────
+  const [memberIdConfigOpen, setMemberIdConfigOpen] = useState(false);
+  const [attendanceSheetOpen, setAttendanceSheetOpen] = useState(false);
 
   return (
-    <div className="space-y-4 pb-20 max-w-6xl mx-auto px-2 sm:px-4">
-      {/* Top Controls Bar */}
+    <div className="space-y-4 pb-24 max-w-6xl mx-auto px-3 sm:px-4">
+      {/* ─── Header ───────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <Users className="h-5 w-5 text-emerald-400" />
+          <Users className="h-5 w-5 text-emerald-500" />
           <h1 className="text-lg font-bold">Users Management</h1>
-          {/* ✅ LIVE indicator */}
-          {isLive && (
-            <Badge variant="outline" className="text-[10px] border-emerald-500/40 text-emerald-400 bg-emerald-500/10 flex items-center gap-1 animate-pulse ml-1">
+          {isLive ? (
+            <Badge
+              variant="outline"
+              className="text-[10px] border-emerald-400 text-emerald-600 bg-emerald-50 flex items-center gap-1 animate-pulse"
+            >
               <Radio className="h-2.5 w-2.5" /> LIVE
+            </Badge>
+          ) : (
+            <Badge
+              variant="outline"
+              className="text-[10px] border-amber-400 text-amber-600 bg-amber-50 flex items-center gap-1"
+            >
+              <RefreshCw className="h-2.5 w-2.5" /> {connectionStatus}
             </Badge>
           )}
         </div>
+
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
             size="sm"
             onClick={() => liveSyncMutation.mutate()}
             disabled={liveSyncMutation.isPending}
-            className="text-xs border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 h-8 shadow-sm"
-            title="Sync latest live registrants & attendees from Zoom API"
+            className="text-xs border-emerald-500/40 text-emerald-600 hover:bg-emerald-50 h-8"
           >
             <RefreshCw className={cn("h-3.5 w-3.5 mr-1", liveSyncMutation.isPending && "animate-spin")} />
             {liveSyncMutation.isPending ? "Syncing..." : "Sync Live Zoom"}
@@ -248,93 +286,94 @@ function RegistrantsPage() {
             variant="outline"
             size="sm"
             onClick={() => setMemberIdConfigOpen(true)}
-            className="text-xs border-primary/40 text-primary hover:bg-primary/10 h-8"
+            className="text-xs border-primary/40 text-primary hover:bg-primary/5 h-8"
           >
-            <Hash className="h-3.5 w-3.5 mr-1" /> Member ID Config
+            <Hash className="h-3.5 w-3.5 mr-1" /> Member ID
           </Button>
           <Button
             variant="outline"
             size="sm"
             onClick={() => setAttendanceSheetOpen(true)}
-            className="text-xs border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 h-8"
+            className="text-xs border-emerald-500/40 text-emerald-600 hover:bg-emerald-50 h-8"
           >
-            <Clock className="h-3.5 w-3.5 mr-1" /> Attendance Roster
+            <Clock className="h-3.5 w-3.5 mr-1" /> Attendance
           </Button>
         </div>
       </div>
 
-      {/* Compact Sleek Active Meeting & User Stat Bar */}
-      <Card className="border border-border/50 bg-card/90 shadow-md">
+      {/* ─── Debug Info ────────────────────────────────────────────────────── */}
+      {lastEvent && (
+        <div className="text-[10px] text-muted-foreground font-mono bg-muted/30 px-2 py-1 rounded">
+          Last event: {lastEvent} | Total: {counts.total} | Connection: {connectionStatus}
+        </div>
+      )}
+
+      {/* ─── Active Meeting & Stats ────────────────────────────────────────── */}
+      <Card className="border border-border/40 shadow-sm">
         <CardContent className="p-3 sm:p-4 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 pb-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/30 pb-3">
             <div className="flex items-center gap-2 min-w-0">
-              <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-              <span className="text-xs font-bold text-foreground truncate">
+              <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+              <span className="text-sm font-bold truncate">
                 {activeMeeting?.topic || "ＳＵＮＣＬＯＵＤＳ １７６６"}
               </span>
-              <span className="font-mono text-[11px] text-muted-foreground">#{activeMeeting?.zoom_id || "85651598189"}</span>
+              <span className="font-mono text-[11px] text-muted-foreground">
+                #{activeMeeting?.zoom_id || "85651598189"}
+              </span>
             </div>
             <Button
               size="sm"
               variant={activeMeetingOnly ? "default" : "outline"}
               onClick={() => setActiveMeetingOnly((v) => !v)}
-              className="text-[11px] h-6 px-2 shrink-0"
+              className="text-[11px] h-7 px-3 shrink-0"
             >
-              {activeMeetingOnly ? "Showing: Active meeting only" : "Showing: All meetings"}
+              {activeMeetingOnly ? "Active Meeting Only" : "All Meetings"}
             </Button>
           </div>
 
-          {/* Compact Horizontal 4-Pill Stat Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
-            <div className="flex items-center justify-between px-3 py-1.5 rounded-md bg-blue-500/10 border border-blue-500/30 text-blue-300">
-              <span className="text-[11px] font-semibold uppercase tracking-wider">Total</span>
-              <span className="text-sm font-bold">{counts.total}</span>
-            </div>
-            <div className="flex items-center justify-between px-3 py-1.5 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-300">
-              <span className="text-[11px] font-semibold uppercase tracking-wider">Pending</span>
-              <span className="text-sm font-bold">{counts.pending}</span>
-            </div>
-            <div className="flex items-center justify-between px-3 py-1.5 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-300">
-              <span className="text-[11px] font-semibold uppercase tracking-wider">Approved</span>
-              <span className="text-sm font-bold">{counts.approved}</span>
-            </div>
-            <div className="flex items-center justify-between px-3 py-1.5 rounded-md bg-rose-500/10 border border-rose-500/30 text-rose-300">
-              <span className="text-[11px] font-semibold uppercase tracking-wider">Denied</span>
-              <span className="text-sm font-bold">{counts.denied}</span>
-            </div>
+          <div className="grid grid-cols-5 gap-2">
+            <StatPill label="Total" value={counts.total} color="blue" />
+            <StatPill label="Pending" value={counts.pending} color="amber" />
+            <StatPill label="On Hold" value={counts.onHold} color="violet" />
+            <StatPill label="Approved" value={counts.approved} color="emerald" />
+            <StatPill label="Denied" value={counts.denied} color="rose" />
           </div>
         </CardContent>
       </Card>
 
-      {/* Main Search & User List Table */}
-      <Card className="border border-border/60 bg-card/90 shadow-md">
-        <CardHeader className="pb-3 border-b border-border/50 space-y-3 p-3 sm:p-4">
+      {/* ─── Search & Filters ──────────────────────────────────────────────── */}
+      <Card className="border border-border/40 shadow-sm">
+        <CardHeader className="pb-3 border-b border-border/30 space-y-3 p-3 sm:p-4">
           <div className="relative">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              className="w-full pl-9 bg-black/20 border-border/50 text-xs h-9"
-              placeholder="Search by name, email, @username, or country..."
+              className="w-full pl-9 bg-background border-border/40 text-sm h-9"
+              placeholder="Search by name, email, @username..."
               value={q}
               onChange={(e) => setQ(e.target.value)}
             />
           </div>
 
-          {/* Vibrant Status Filter Chips */}
           <div className="flex flex-wrap gap-1.5">
             {filterChips.map((chip) => {
               const isActive = activeFilter === chip.id;
+              const ChipIcon = chip.icon;
               return (
                 <button
                   key={chip.id}
                   onClick={() => setActiveFilter(chip.id)}
                   className={cn(
-                    "px-2.5 py-1 text-xs font-medium rounded-md transition-all border",
+                    "flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full transition-all border",
                     isActive
                       ? chip.activeStyle
-                      : "bg-muted/20 border-border/40 hover:bg-muted text-muted-foreground"
+                      : "bg-muted/30 border-border/30 text-muted-foreground hover:bg-muted/50"
                   )}
                 >
-                  {chip.label} {chip.id === "all-pending" ? `(${counts.pending})` : ""}
+                  <ChipIcon className="h-3 w-3" />
+                  {chip.label}
+                  {chip.id === "all-pending" && counts.pending > 0 && (
+                    <span className="ml-0.5">({counts.pending})</span>
+                  )}
                 </button>
               );
             })}
@@ -342,113 +381,137 @@ function RegistrantsPage() {
         </CardHeader>
 
         <CardContent className="p-0">
-          <div className="flex items-center justify-between p-3 border-b border-border/50 bg-muted/20 text-xs">
+          <div className="flex items-center justify-between p-3 border-b border-border/30 bg-muted/20 text-xs">
             <div className="flex items-center gap-2">
-              <Checkbox 
-                checked={selectedIds.size > 0 && selectedIds.size === filtered.length}
+              <Checkbox
+                checked={selectedIds.size > 0 && selectedIds.size === filtered.length && filtered.length > 0}
                 onCheckedChange={toggleSelectAll}
                 className="h-4 w-4"
               />
-              <span className="font-semibold text-muted-foreground">Select All</span>
+              <span className="font-medium text-muted-foreground">Select All</span>
             </div>
-            <div className="text-muted-foreground">Showing {filtered.length} users</div>
+            <span className="text-muted-foreground">{filtered.length} users</span>
           </div>
 
-          <div className="divide-y divide-border/50">
+          <div className="divide-y divide-border/30">
             {filtered.map((r) => (
-              <div 
-                key={r.id} 
-                className="flex items-center justify-between p-3 sm:p-4 hover:bg-muted/10 transition-colors cursor-pointer"
+              <div
+                key={r.id}
+                className="flex items-start gap-3 p-3 sm:p-4 hover:bg-muted/10 transition-colors cursor-pointer group"
                 onClick={() => setSelectedRegistrant(r)}
               >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div onClick={(e) => e.stopPropagation()}>
-                    <Checkbox 
-                      checked={selectedIds.has(r.id)}
-                      onCheckedChange={() => toggleSelect(r.id)}
-                      className="h-4 w-4"
-                    />
+                <div onClick={(e) => e.stopPropagation()} className="pt-1">
+                  <Checkbox
+                    checked={selectedIds.has(r.id)}
+                    onCheckedChange={() => toggleSelect(r.id)}
+                    className="h-4 w-4"
+                  />
+                </div>
+
+                <Avatar className="h-9 w-9 bg-primary/10 text-primary font-bold shrink-0 mt-0.5">
+                  <AvatarFallback>{r.name.charAt(0).toUpperCase()}</AvatarFallback>
+                </Avatar>
+
+                <div className="flex-1 min-w-0 space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-sm">{r.name}</span>
+                    <Badge variant="outline" className="text-[10px] h-4 px-1 font-mono bg-muted/30 border-border/40">
+                      {r.countryCode} {r.countryFlag}
+                    </Badge>
                   </div>
-                  <Avatar className="h-9 w-9 bg-primary/20 text-primary font-bold shrink-0">
-                    <AvatarFallback>{r.name.charAt(0).toUpperCase()}</AvatarFallback>
-                  </Avatar>
 
-                  <div className="flex flex-col gap-0.5 min-w-0">
-                    {/* User Name + Country Code */}
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-sm truncate">{r.name}</span>
-                      <Badge variant="outline" className="text-[10px] h-4 px-1 font-mono text-foreground bg-muted/40 border-border/60 shrink-0">
-                        {r.countryCode} {r.countryFlag}
-                      </Badge>
-                    </div>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="truncate">{r.email}</span>
+                    <span>·</span>
+                    <span className="font-mono text-sky-500">{r.telegramUser}</span>
+                  </div>
 
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground/90">
-                      <span className="truncate max-w-[140px] sm:max-w-none">{r.email}</span>
-                      <span>·</span>
-                      <span className="font-mono text-[11px] text-sky-400">{r.telegramUser}</span>
-                    </div>
-
-                    {/* Status Badge & Registration Source */}
-                    <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                      <Badge className={cn("text-[9px] uppercase font-bold tracking-wider px-2 py-0.5", statusColor[r.status])}>
-                        {r.status}
-                      </Badge>
-
-                      {r.source === "telegram_miniapp" ? (
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 border-sky-500/40 text-sky-300 bg-sky-500/15 flex items-center gap-1 font-medium">
-                          <Smartphone className="h-3 w-3" /> Telegram Mini App
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 border-blue-500/40 text-blue-300 bg-blue-600/15 flex items-center gap-1 font-medium">
-                          <Globe className="h-3 w-3" /> Zoom Web Portal
-                        </Badge>
+                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                    <Badge
+                      className={cn(
+                        "text-[9px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full",
+                        statusColor[r.status]
                       )}
+                    >
+                      {r.status}
+                    </Badge>
 
-                      <span className="text-[10px] text-muted-foreground font-mono flex items-center gap-1 ml-1" title={new Date(r.registeredAt).toLocaleString()}>
-                        <Clock className="h-3 w-3 opacity-60" /> {formatBangkokRegistrationTime(r.registeredAt)}
-                      </span>
-                    </div>
+                    {/* Source Badge (FIXED: based on telegram_id, not telegram_user) */}
+                    {r.source === "telegram_miniapp" ? (
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] px-1.5 py-0.5 border-sky-400/40 text-sky-600 bg-sky-50 flex items-center gap-1"
+                      >
+                        <Smartphone className="h-3 w-3" /> Telegram Mini App
+                      </Badge>
+                    ) : (
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] px-1.5 py-0.5 border-blue-400/40 text-blue-600 bg-blue-50 flex items-center gap-1"
+                      >
+                        <Globe className="h-3 w-3" /> Zoom Web Portal
+                      </Badge>
+                    )}
+
+                    <span
+                      className="text-[10px] text-muted-foreground font-mono flex items-center gap-1"
+                      title={new Date(r.registeredAt).toLocaleString()}
+                    >
+                      <Clock className="h-3 w-3 opacity-50" />
+                      {formatBangkokRegistrationTime(r.registeredAt)}
+                    </span>
                   </div>
                 </div>
 
-                {/* Quick Action Buttons */}
-                <div className="flex items-center gap-1.5 ml-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                <div
+                  className="flex items-center gap-1 shrink-0 pt-1"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <Button
                     size="sm"
                     disabled={updateMutation.isPending}
-                    onClick={() => handleQuickApprove(r.id, r.name)}
-                    className="h-8 w-8 p-0 rounded-full bg-emerald-500/20 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/40 transition-all"
-                    title="Approve User"
+                    onClick={() => handleQuickApprove(r.id)}
+                    className="h-7 w-7 p-0 rounded-full bg-emerald-100 hover:bg-emerald-500 text-emerald-600 hover:text-white border border-emerald-300 transition-all"
+                    title="Approve"
                   >
-                    <Check className="h-4 w-4" />
+                    <Check className="h-3.5 w-3.5" />
                   </Button>
                   <Button
                     size="sm"
                     disabled={updateMutation.isPending}
-                    onClick={() => handleQuickDeny(r.id, r.name)}
-                    className="h-8 w-8 p-0 rounded-full bg-rose-500/20 hover:bg-rose-500 text-rose-400 hover:text-white border border-rose-500/40 transition-all"
-                    title="Deny User"
+                    onClick={() => handleQuickOnHold(r.id)}
+                    className="h-7 w-7 p-0 rounded-full bg-violet-100 hover:bg-violet-500 text-violet-600 hover:text-white border border-violet-300 transition-all"
+                    title="On Hold"
                   >
-                    <X className="h-4 w-4" />
+                    <PauseCircle className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    disabled={updateMutation.isPending}
+                    onClick={() => handleQuickDeny(r.id)}
+                    className="h-7 w-7 p-0 rounded-full bg-rose-100 hover:bg-rose-500 text-rose-600 hover:text-white border border-rose-300 transition-all"
+                    title="Deny"
+                  >
+                    <X className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               </div>
             ))}
 
             {filtered.length === 0 && (
-              <div className="p-8 text-center text-muted-foreground text-xs">
-                {isLoading ? "Loading registrants..." : "No users found matching your search and filter criteria."}
+              <div className="p-8 text-center text-muted-foreground text-sm">
+                {isLoading ? "Loading registrants..." : "No users found."}
               </div>
             )}
           </div>
         </CardContent>
       </Card>
 
-      {/* Floating Bulk Actions Bar */}
+      {/* ─── Floating Bulk Actions ──────────────────────────────────────────── */}
       {selectedIds.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-slate-900/95 border border-primary/40 px-5 py-3 rounded-full shadow-2xl backdrop-blur-md">
-          <span className="text-xs font-semibold text-white mr-1">
-            {selectedIds.size} {selectedIds.size === 1 ? "user" : "users"} selected
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-slate-900/95 border border-primary/30 px-5 py-3 rounded-full shadow-2xl backdrop-blur-md">
+          <span className="text-xs font-semibold text-white">
+            {selectedIds.size} selected
           </span>
           <Button
             size="sm"
@@ -456,7 +519,7 @@ function RegistrantsPage() {
             onClick={() => bulkMutation.mutate({ ids: Array.from(selectedIds), status: "approved" })}
             className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs h-8 rounded-full gap-1.5"
           >
-            <UserCheck className="h-3.5 w-3.5" /> Approve Selected
+            <UserCheck className="h-3.5 w-3.5" /> Approve
           </Button>
           <Button
             size="sm"
@@ -464,29 +527,45 @@ function RegistrantsPage() {
             onClick={() => bulkMutation.mutate({ ids: Array.from(selectedIds), status: "denied" })}
             className="bg-rose-600 hover:bg-rose-500 text-white text-xs h-8 rounded-full gap-1.5"
           >
-            <UserX className="h-3.5 w-3.5" /> Deny Selected
+            <UserX className="h-3.5 w-3.5" /> Deny
           </Button>
         </div>
       )}
 
-      {/* Side-Slided User Profile Sheet Modal */}
-      <RegistrantProfileSheet 
-        registrant={selectedRegistrant} 
-        open={!!selectedRegistrant} 
-        onOpenChange={(isOpen) => !isOpen && setSelectedRegistrant(null)} 
+      {/* ─── Modals ─────────────────────────────────────────────────────────── */}
+      <RegistrantProfileSheet
+        registrant={selectedRegistrant}
+        open={!!selectedRegistrant}
+        onOpenChange={(isOpen) => !isOpen && setSelectedRegistrant(null)}
       />
+      <MemberIdConfigDialog open={memberIdConfigOpen} onOpenChange={setMemberIdConfigOpen} />
+      <AttendanceManagementSheet open={attendanceSheetOpen} onOpenChange={setAttendanceSheetOpen} />
+    </div>
+  );
+}
 
-      {/* Member ID Config Dialog */}
-      <MemberIdConfigDialog
-        open={memberIdConfigOpen}
-        onOpenChange={setMemberIdConfigOpen}
-      />
+// ─── StatPill Component ────────────────────────────────────────────────────
+function StatPill({
+  label,
+  value,
+  color,
+}: {
+  label: string;
+  value: number;
+  color: "blue" | "amber" | "violet" | "emerald" | "rose";
+}) {
+  const colorMap = {
+    blue:    "bg-blue-50 border-blue-200 text-blue-700",
+    amber:   "bg-amber-50 border-amber-200 text-amber-700",
+    violet:  "bg-violet-50 border-violet-200 text-violet-700",
+    emerald: "bg-emerald-50 border-emerald-200 text-emerald-700",
+    rose:    "bg-rose-50 border-rose-200 text-rose-700",
+  };
 
-      {/* Attendance Management Sheet */}
-      <AttendanceManagementSheet
-        open={attendanceSheetOpen}
-        onOpenChange={setAttendanceSheetOpen}
-      />
+  return (
+    <div className={cn("flex flex-col items-center justify-center py-2 px-1 rounded-lg border", colorMap[color])}>
+      <span className="text-[10px] font-semibold uppercase tracking-wider opacity-70">{label}</span>
+      <span className="text-lg font-bold leading-tight">{value}</span>
     </div>
   );
 }
