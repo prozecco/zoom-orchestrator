@@ -10,10 +10,11 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getActiveMeeting, syncActiveMeeting } from "@/lib/meetings.functions";
-import { submitRegistration, getMyRegistration } from "@/lib/registrants.functions";
+import { submitRegistration } from "@/lib/registrants.functions";
 import { toast } from "sonner";
 import { useTelegram } from "@/hooks/useTelegram";
-import { User, CheckCircle2, ExternalLink, RefreshCw, Video, MessageCircle, Sparkles } from "lucide-react";
+import { useMyRegistrationRealtime } from "@/hooks/useMyRegistrationRealtime";
+import { User, CheckCircle2, ExternalLink, RefreshCw, Video, MessageCircle, Sparkles, Radio } from "lucide-react";
 import { trackZoomJoin } from "@/lib/telegram-sync";
 import { cn } from "@/lib/utils";
 
@@ -66,30 +67,28 @@ function UnifiedAppPage() {
 
   const getActiveFn = useServerFn(getActiveMeeting);
   const syncActiveFn = useServerFn(syncActiveMeeting);
-  const getMyRegFn = useServerFn(getMyRegistration);
   const submitRegFn = useServerFn(submitRegistration);
 
-  // 1. Live Active Meeting Query
+  // 1. Live Active Meeting Query (reduced polling)
   const activeMeetingQuery = useQuery({
     queryKey: ["activeMeeting"],
     queryFn: () => getActiveFn(),
-    refetchInterval: 5000,
+    refetchInterval: 30000, // Reduced from 5000 to 30s
   });
 
-  // 2. User Existing Registration Query
-  const myRegQuery = useQuery({
-    queryKey: ["myRegistration", user.id],
-    queryFn: () => getMyRegFn({ data: { telegramId: user.id } }),
-    enabled: !!user.id,
-    refetchInterval: 10000,
-  });
+  // 2. ✅ REPLACED: Real-time registration hook instead of polling
+  const {
+    data: existingReg,
+    isLoading: regLoading,
+    isLive: isRegLive,
+    lastStatusChange,
+  } = useMyRegistrationRealtime(user.id);
 
   // 3. Manual Live Sync Mutation
   const syncMutation = useMutation({
     mutationFn: () => syncActiveFn({ data: {} }),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["activeMeeting"] });
-      queryClient.invalidateQueries({ queryKey: ["myRegistration"] });
       toast.success(`Synced Zoom Session: ${data?.topic || "ＳＵＮＣＬＯＵＤＳ １７６６"}`);
       haptic?.notificationOccurred("success");
     },
@@ -111,7 +110,7 @@ function UnifiedAppPage() {
       }
     : DEFAULT_MEETING;
 
-  // Form State Management matching Zoom Web Portal fields
+  // Form State Management
   const [firstName, setFirstName] = useState(user.first_name || "");
   const [lastName, setLastName] = useState(user.last_name || "");
   const [email, setEmail] = useState("");
@@ -126,10 +125,21 @@ function UnifiedAppPage() {
     if (user.last_name && !lastName) setLastName(user.last_name);
   }, [user.first_name, user.last_name]);
 
-  // Existing registration state
-  const existingReg = myRegQuery.data;
   const isRegistered = !!existingReg;
   const personalJoinUrl = existingReg?.meetings?.join_url || currentMeeting.joinUrl;
+
+  // Status display helpers
+  const statusConfig = {
+    pending: { label: "รอการอนุมัติ", emoji: "⏳", color: "text-amber-400", bg: "bg-amber-500/10", border: "border-amber-500/30" },
+    on_hold: { label: "พักการอนุมัติ", emoji: "⏸️", color: "text-violet-400", bg: "bg-violet-500/10", border: "border-violet-500/30" },
+    approved: { label: "อนุมัติแล้ว", emoji: "✅", color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/30" },
+    denied: { label: "ถูกปฏิเสธ", emoji: "❌", color: "text-rose-400", bg: "bg-rose-500/10", border: "border-rose-500/30" },
+    cancelled: { label: "ยกเลิก", emoji: "⚪", color: "text-slate-400", bg: "bg-slate-500/10", border: "border-slate-500/30" },
+    attended: { label: "เข้าร่วมแล้ว", emoji: "🎉", color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/30" },
+  };
+
+  const currentStatus = existingReg?.status as keyof typeof statusConfig || "pending";
+  const statusDisplay = statusConfig[currentStatus] || statusConfig.pending;
 
   const doSubmit = async () => {
     if (!firstName.trim()) {
@@ -160,7 +170,7 @@ function UnifiedAppPage() {
       setSubmitting(false);
       haptic?.notificationOccurred("success");
       toast.success("ลงทะเบียนสำเร็จ — ระบบส่งข้อมูลเข้า Zoom API และสร้างลิงก์เข้าเรียนส่วนตัวให้คุณเรียบร้อยแล้ว");
-      queryClient.invalidateQueries({ queryKey: ["myRegistration"] });
+      // Realtime hook will auto-update the UI when DB INSERT arrives
     } catch (err: any) {
       setSubmitting(false);
       haptic?.notificationOccurred("error");
@@ -182,7 +192,7 @@ function UnifiedAppPage() {
 
   return (
     <div className="space-y-4 max-w-lg mx-auto pb-10">
-      {/* Active Live Session Card (Host email & Duplicate Admin banners removed) */}
+      {/* Active Live Session Card */}
       <Card className="border-border/60 bg-card/80 backdrop-blur-sm overflow-hidden shadow-lg">
         <CardHeader className="py-4 border-b border-border/40 bg-muted/20">
           <div className="flex items-start justify-between gap-3">
@@ -225,24 +235,65 @@ function UnifiedAppPage() {
         </CardContent>
       </Card>
 
-      {/* Main Action View: Registered / Approved vs Zoom Portal Registration Form */}
+      {/* ✅ Real-time Status Banner (shows when user has registration) */}
+      {isRegistered && (
+        <Card className={cn("border shadow-lg overflow-hidden", statusDisplay.border, statusDisplay.bg)}>
+          <CardContent className="p-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">{statusDisplay.emoji}</span>
+              <div>
+                <div className={cn("text-sm font-bold", statusDisplay.color)}>
+                  {statusDisplay.label}
+                </div>
+                <div className="text-[10px] text-muted-foreground">
+                  {isRegLive ? (
+                    <span className="flex items-center gap-1 text-emerald-400">
+                      <Radio className="h-2.5 w-2.5 animate-pulse" /> อัปเดตแบบ Real-time
+                    </span>
+                  ) : (
+                    "อัปเดตอัตโนมัติ"
+                  )}
+                </div>
+              </div>
+            </div>
+            <Badge variant="outline" className={cn("text-[10px]", statusDisplay.color, statusDisplay.border)}>
+              {existingReg?.status}
+            </Badge>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Main Action View: Registered vs Registration Form */}
       {isRegistered ? (
-        /* Approved / Attendance Ready View */
-        <Card className="border-emerald-500/30 bg-emerald-950/20 shadow-xl">
-          <CardHeader className="py-4 border-b border-emerald-500/20">
+        /* Approved / Registration Status View */
+        <Card className={cn(
+          "border shadow-xl",
+          currentStatus === "approved" || currentStatus === "attended"
+            ? "border-emerald-500/30 bg-emerald-950/20"
+            : currentStatus === "denied"
+            ? "border-rose-500/30 bg-rose-950/20"
+            : "border-amber-500/30 bg-amber-950/20"
+        )}>
+          <CardHeader className="py-4 border-b border-border/20">
             <div className="flex items-center gap-3">
-              <Avatar className="h-11 w-11 border-2 border-emerald-500/50">
+              <Avatar className="h-11 w-11 border-2 border-primary/50">
                 {user.photo_url ? <AvatarImage src={user.photo_url} alt={user.first_name} /> : null}
-                <AvatarFallback className="bg-emerald-500/20 text-emerald-300 font-bold">
+                <AvatarFallback className="bg-primary/20 text-primary font-bold">
                   {user.first_name?.charAt(0) || "U"}
                 </AvatarFallback>
               </Avatar>
               <div>
                 <div className="flex items-center gap-1.5">
-                  <CardTitle className="text-base font-bold text-emerald-300">Registration Approved</CardTitle>
-                  <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
+                  <CardTitle className="text-base font-bold">
+                    {currentStatus === "approved" || currentStatus === "attended"
+                      ? "Registration Approved"
+                      : currentStatus === "denied"
+                      ? "Registration Denied"
+                      : "Registration Submitted"}
+                  </CardTitle>
+                  {currentStatus === "approved" && <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />}
                 </div>
-                <CardDescription className="text-xs text-emerald-200/80">
+                <CardDescription className="text-xs">
                   Signed in as @{user.username || user.first_name} ({existingReg?.email || email || "Registered"})
                 </CardDescription>
               </div>
@@ -250,7 +301,11 @@ function UnifiedAppPage() {
           </CardHeader>
 
           <CardContent className="space-y-4 p-4">
-            <div className="p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/30 space-y-3">
+            <div className={cn(
+              "p-4 rounded-lg border space-y-3",
+              statusDisplay.bg,
+              statusDisplay.border
+            )}>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-muted-foreground">Meeting Topic</span>
                 <span className="font-medium text-foreground truncate max-w-[200px]">{currentMeeting.topic}</span>
@@ -259,15 +314,44 @@ function UnifiedAppPage() {
                 <span className="text-muted-foreground">Meeting Passcode</span>
                 <span className="font-mono font-bold text-sky-400">{currentMeeting.passcode}</span>
               </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Your Status</span>
+                <span className={cn("font-bold", statusDisplay.color)}>
+                  {statusDisplay.emoji} {statusDisplay.label}
+                </span>
+              </div>
 
-              <Button
-                onClick={handleJoinZoom}
-                className="w-full h-11 text-sm font-semibold bg-emerald-500 hover:bg-emerald-400 text-white shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2"
-              >
-                <Video className="h-4 w-4" />
-                Join Zoom Live Session Now
-                <ExternalLink className="h-4 w-4 ml-1" />
-              </Button>
+              {/* Show Join button only if approved */}
+              {(currentStatus === "approved" || currentStatus === "attended") && (
+                <Button
+                  onClick={handleJoinZoom}
+                  className="w-full h-11 text-sm font-semibold bg-emerald-500 hover:bg-emerald-400 text-white shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2"
+                >
+                  <Video className="h-4 w-4" />
+                  Join Zoom Live Session Now
+                  <ExternalLink className="h-4 w-4 ml-1" />
+                </Button>
+              )}
+
+              {/* Show message if pending/on_hold/denied */}
+              {currentStatus === "pending" && (
+                <div className="text-xs text-amber-300 text-center py-2">
+                  ⏳ การลงทะเบียนของคุณอยู่ระหว่างรอการอนุมัติจากแอดมิน<br/>
+                  <span className="text-muted-foreground">คุณจะได้รับการแจ้งเตือนเมื่อสถานะเปลี่ยน</span>
+                </div>
+              )}
+              {currentStatus === "on_hold" && (
+                <div className="text-xs text-violet-300 text-center py-2">
+                  ⏸️ การลงทะเบียนของคุณถูกพักไว้ชั่วคราว<br/>
+                  <span className="text-muted-foreground">กรุณาติดต่อแอดมินสำหรับข้อมูลเพิ่มเติม</span>
+                </div>
+              )}
+              {currentStatus === "denied" && (
+                <div className="text-xs text-rose-300 text-center py-2">
+                  ❌ การลงทะเบียนของคุณถูกปฏิเสธ<br/>
+                  <span className="text-muted-foreground">กรุณาติดต่อแอดมินสำหรับข้อมูลเพิ่มเติม</span>
+                </div>
+              )}
             </div>
 
             <div className="flex gap-2">
@@ -281,7 +365,7 @@ function UnifiedAppPage() {
           </CardContent>
         </Card>
       ) : (
-        /* Registration Form View matching Zoom Web Portal fields & Custom Questions */
+        /* Registration Form View */
         <Card className="border-border/60 bg-card/80 shadow-xl">
           <CardHeader className="py-4 border-b border-border/40">
             <div className="flex items-center gap-3">

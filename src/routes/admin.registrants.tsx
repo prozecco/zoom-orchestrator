@@ -15,11 +15,12 @@ import type { Registrant } from "@/lib/mock-data";
 import { listRegistrants, updateRegistrantStatus, bulkUpdateStatus } from "@/lib/registrants.functions";
 import { getActiveMeeting } from "@/lib/meetings.functions";
 import { formatBangkokRegistrationTime } from "@/lib/time-formatter";
-import { Search, Hash, Clock, Smartphone, Globe, Check, X, AlertTriangle, CheckCircle2, UserCheck, UserX, Users, RefreshCw } from "lucide-react";
+import { Search, Hash, Clock, Smartphone, Globe, Check, X, AlertTriangle, CheckCircle2, UserCheck, UserX, Users, RefreshCw, Radio } from "lucide-react";
 import { syncLiveZoomData } from "@/lib/meetings.functions";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useTelegramViewer } from "@/hooks/useTelegramViewer";
+import { useRealtimeRegistrants } from "@/hooks/useRealtimeRegistrants";
 
 export const Route = createFileRoute("/admin/registrants")({
   ssr: false,
@@ -84,7 +85,7 @@ function RegistrantsPage() {
   const updateStatusFn = useServerFn(updateRegistrantStatus);
   const bulkUpdateStatusFn = useServerFn(bulkUpdateStatus);
   const syncLiveFn = useServerFn(syncLiveZoomData);
-  
+
   const { telegramId } = useTelegramViewer();
   const qc = useQueryClient();
   const [q, setQ] = useState("");
@@ -93,11 +94,18 @@ function RegistrantsPage() {
   const [selectedRegistrant, setSelectedRegistrant] = useState<Registrant | null>(null);
   const [activeMeetingOnly, setActiveMeetingOnly] = useState(true);
 
-  const registrantsQuery = useQuery({ queryKey: ["registrants"], queryFn: () => listRegs(), refetchInterval: 5000 });
-  const activeMeetingQuery = useQuery({ queryKey: ["active-meeting"], queryFn: () => getActive(), refetchInterval: 15000 });
+  // ✅ REPLACED: useRealtimeRegistrants instead of polling useQuery
+  const { data: registrantsData, isLoading, isLive } = useRealtimeRegistrants();
+
+  // Active meeting still polls lightly (meeting data rarely changes)
+  const activeMeetingQuery = useQuery({
+    queryKey: ["active-meeting"],
+    queryFn: () => getActive(),
+    refetchInterval: 30000, // Reduced from 15000 to 30s — meeting info rarely changes
+  });
   const activeMeeting = activeMeetingQuery.data;
 
-  // Live Sync Mutation directly from Zoom API
+  // Live Sync Mutation (manual fallback)
   const liveSyncMutation = useMutation({
     mutationFn: () => syncLiveFn({ data: {} }),
     onSuccess: (data) => {
@@ -150,7 +158,7 @@ function RegistrantsPage() {
     },
   });
 
-  const allLive: (Registrant & { meeting_id: string | null })[] = (registrantsQuery.data ?? []).map((dbR) => ({
+  const allLive: (Registrant & { meeting_id: string | null })[] = (registrantsData ?? []).map((dbR: any) => ({
     id: dbR.id,
     name: dbR.name,
     telegramUser: dbR.telegram_user ? `@${dbR.telegram_user.replace(/^@/, "")}` : "@unknown",
@@ -217,6 +225,12 @@ function RegistrantsPage() {
         <div className="flex items-center gap-2">
           <Users className="h-5 w-5 text-emerald-400" />
           <h1 className="text-lg font-bold">Users Management</h1>
+          {/* ✅ LIVE indicator */}
+          {isLive && (
+            <Badge variant="outline" className="text-[10px] border-emerald-500/40 text-emerald-400 bg-emerald-500/10 flex items-center gap-1 animate-pulse ml-1">
+              <Radio className="h-2.5 w-2.5" /> LIVE
+            </Badge>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -249,7 +263,7 @@ function RegistrantsPage() {
         </div>
       </div>
 
-      {/* Compact Sleek Active Meeting & User Stat Bar (Blue Circle Request Fix) */}
+      {/* Compact Sleek Active Meeting & User Stat Bar */}
       <Card className="border border-border/50 bg-card/90 shadow-md">
         <CardContent className="p-3 sm:p-4 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 pb-2.5">
@@ -304,8 +318,8 @@ function RegistrantsPage() {
               onChange={(e) => setQ(e.target.value)}
             />
           </div>
-          
-          {/* Vibrant Status Filter Chips (Cyan Circle Request Fix) */}
+
+          {/* Vibrant Status Filter Chips */}
           <div className="flex flex-wrap gap-1.5">
             {filterChips.map((chip) => {
               const isActive = activeFilter === chip.id;
@@ -326,7 +340,7 @@ function RegistrantsPage() {
             })}
           </div>
         </CardHeader>
-        
+
         <CardContent className="p-0">
           <div className="flex items-center justify-between p-3 border-b border-border/50 bg-muted/20 text-xs">
             <div className="flex items-center gap-2">
@@ -374,14 +388,12 @@ function RegistrantsPage() {
                       <span className="font-mono text-[11px] text-sky-400">{r.telegramUser}</span>
                     </div>
 
-                    {/* Status Badge & Registration Source (Green Circle Request Fix) */}
+                    {/* Status Badge & Registration Source */}
                     <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                      {/* Consistent Status Badge */}
                       <Badge className={cn("text-[9px] uppercase font-bold tracking-wider px-2 py-0.5", statusColor[r.status])}>
                         {r.status}
                       </Badge>
 
-                      {/* Registration Source Badge */}
                       {r.source === "telegram_miniapp" ? (
                         <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 border-sky-500/40 text-sky-300 bg-sky-500/15 flex items-center gap-1 font-medium">
                           <Smartphone className="h-3 w-3" /> Telegram Mini App
@@ -392,14 +404,13 @@ function RegistrantsPage() {
                         </Badge>
                       )}
 
-                      {/* Registration Timestamp */}
                       <span className="text-[10px] text-muted-foreground font-mono flex items-center gap-1 ml-1" title={new Date(r.registeredAt).toLocaleString()}>
                         <Clock className="h-3 w-3 opacity-60" /> {formatBangkokRegistrationTime(r.registeredAt)}
                       </span>
                     </div>
                   </div>
                 </div>
-                
+
                 {/* Quick Action Buttons */}
                 <div className="flex items-center gap-1.5 ml-2 shrink-0" onClick={(e) => e.stopPropagation()}>
                   <Button
@@ -423,10 +434,10 @@ function RegistrantsPage() {
                 </div>
               </div>
             ))}
-            
+
             {filtered.length === 0 && (
               <div className="p-8 text-center text-muted-foreground text-xs">
-                No users found matching your search and filter criteria.
+                {isLoading ? "Loading registrants..." : "No users found matching your search and filter criteria."}
               </div>
             )}
           </div>
@@ -458,7 +469,7 @@ function RegistrantsPage() {
         </div>
       )}
 
-      {/* Side-Slided User Profile Sheet Modal (for viewing details & notes) */}
+      {/* Side-Slided User Profile Sheet Modal */}
       <RegistrantProfileSheet 
         registrant={selectedRegistrant} 
         open={!!selectedRegistrant} 
